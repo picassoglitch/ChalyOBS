@@ -12,7 +12,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { checkRelayBearer } from "@/lib/relay-auth";
-import { getClipsEnabled, tenantFromStreamId, updateSession } from "@/lib/data";
+import {
+  getClipsEnabled,
+  getOrCreateSession,
+  tenantFromStreamId,
+  updateSession,
+} from "@/lib/data";
 import { nexoclipStarted } from "@/lib/nexoclip";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -34,12 +39,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   await updateSession(tenantId, { isLive: true });
 
-  // Hand off to NexoClip's pipeline when the connection is on.
+  // Hand off to NexoClip's pipeline when the connection is on. Forward the
+  // operator's broadcast title so NexoClip shows the real stream name
+  // instead of an auto-generated tag. (getClipsEnabled stays the gate — its
+  // null-default differs from getOrCreateSession's, so don't conflate them.)
   if (await getClipsEnabled(tenantId)) {
+    const session = await getOrCreateSession(tenantId);
     await nexoclipStarted({
       streamId,
       tenantId,
       recordingPath: body.recording_path ?? `live/${streamId}`,
+      title: session.title,
     });
   }
 

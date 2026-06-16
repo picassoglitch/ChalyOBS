@@ -36,10 +36,14 @@ export async function nexoclipStarted(args: {
   streamId: string;
   tenantId: string;
   recordingPath: string;
+  /** Operator's broadcast title; NexoClip shows it as the stream name
+   *  (falls back to an auto session tag when omitted/empty). */
+  title?: string;
 }): Promise<void> {
   const b = base();
   const s = secret();
   if (!b || !s) return;
+  const title = args.title?.trim();
   try {
     await fetch(`${b}/api/internal/nexoobs/started`, {
       method: "POST",
@@ -51,6 +55,7 @@ export async function nexoclipStarted(args: {
         external_user_id: args.tenantId,
         stream_id: args.streamId,
         recording_path: args.recordingPath,
+        ...(title ? { title } : {}),
       }),
       cache: "no-store",
     });
