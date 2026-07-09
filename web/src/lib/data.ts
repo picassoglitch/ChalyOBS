@@ -148,7 +148,7 @@ interface DestinationRow {
   stream_title: string;
   ingest_url: string;
   stream_key: string;
-  oauth_token: string;
+  oauth_refresh_token: string | null;
   enabled: boolean;
   status_kind: string | null;
   status_platform_name: string | null;
@@ -182,7 +182,8 @@ function rowToConfig(r: DestinationRow): DestinationConfig & { id: string } {
     streamTitle: r.stream_title,
     ingestUrl: r.ingest_url,
     streamKey: r.stream_key,
-    oauthToken: r.oauth_token,
+    // Only a boolean crosses to the client — tokens never leave the server.
+    oauthConnected: (r.oauth_refresh_token ?? "").length > 0,
     enabled: r.enabled,
     status,
   };
@@ -192,14 +193,29 @@ export async function getDestinations(
   tenantId: string,
 ): Promise<(DestinationConfig & { id: string })[]> {
   const db = getSupabaseAdmin();
-  const { data } = await db
+  const { data, error } = await db
     .from("nexoobs_destinations")
     .select(
-      "id, platform_id, channel_handle, stream_title, ingest_url, stream_key, oauth_token, enabled, status_kind, status_platform_name",
+      "id, platform_id, channel_handle, stream_title, ingest_url, stream_key, oauth_refresh_token, enabled, status_kind, status_platform_name",
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: true });
-  return (data ?? []).map((r) => rowToConfig(r as DestinationRow));
+  if (!error) return (data ?? []).map((r) => rowToConfig(r as DestinationRow));
+
+  // Schema-drift guard: before migration 0025 lands, oauth_refresh_token
+  // doesn't exist and the select above 400s. Retry with the legacy column
+  // set so the channels panel keeps working (rows just read as not
+  // OAuth-connected). Remove once 0025 is applied everywhere.
+  const legacy = await db
+    .from("nexoobs_destinations")
+    .select(
+      "id, platform_id, channel_handle, stream_title, ingest_url, stream_key, enabled, status_kind, status_platform_name",
+    )
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: true });
+  return (legacy.data ?? []).map((r) =>
+    rowToConfig({ ...(r as Omit<DestinationRow, "oauth_refresh_token">), oauth_refresh_token: null }),
+  );
 }
 
 export async function addDestination(
@@ -301,6 +317,130 @@ export async function publishBroadcastMeta(
     .from("nexoobs_destinations")
     .update({ stream_title: title, updated_at: now })
     .eq("tenant_id", tenantId);
+}
+
+// ── OAuth auto-connect (Restream-style) ─────────────────────────────────────
+
+/** Everything the platform's OAuth callback learned: identity, the stream
+ *  endpoint (this is what replaces manual entry), and the token set. */
+export interface OAuthConnection {
+  channelHandle: string;
+  ingestUrl: string;
+  streamKey: string;
+  accessToken: string;
+  refreshToken: string;
+  /** ISO timestamp of access-token expiry. */
+  expiresAt: string;
+  /** Space-separated scopes actually granted. */
+  scopes: string;
+}
+
+/** Upsert the tenant's destination for a platform from a completed OAuth
+ *  flow. A fresh connection arrives fully configured, so a NEW row starts
+ *  enabled (that's the auto-connect promise); a RE-connection keeps the
+ *  user's existing on/off choice and just refreshes credentials + status. */
+export async function connectOAuthDestination(
+  tenantId: string,
+  platformId: PlatformId,
+  conn: OAuthConnection,
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  const row = {
+    channel_handle: conn.channelHandle,
+    ingest_url: conn.ingestUrl,
+    stream_key: conn.streamKey,
+    oauth_token: conn.accessToken,
+    oauth_refresh_token: conn.refreshToken,
+    oauth_expires_at: conn.expiresAt,
+    oauth_scopes: conn.scopes,
+    status_kind: "ok",
+    status_platform_name: null,
+    updated_at: new Date().toISOString(),
+  };
+  const { data } = await db
+    .from("nexoobs_destinations")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("platform_id", platformId)
+    .limit(1);
+  const existing = data?.[0];
+  if (existing) {
+    await db
+      .from("nexoobs_destinations")
+      .update(row)
+      .eq("tenant_id", tenantId)
+      .eq("id", existing.id as string);
+  } else {
+    await db.from("nexoobs_destinations").insert({
+      tenant_id: tenantId,
+      platform_id: platformId,
+      enabled: true,
+      ...row,
+    });
+  }
+}
+
+/** Server-side token view of a destination — never crosses to the client. */
+export interface OAuthTokenRow {
+  id: string;
+  platformId: PlatformId;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string | null;
+}
+
+/** OAuth-connected destinations of a tenant (rows with a refresh token). */
+export async function getOAuthConnections(
+  tenantId: string,
+): Promise<OAuthTokenRow[]> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("nexoobs_destinations")
+    .select("id, platform_id, oauth_token, oauth_refresh_token, oauth_expires_at")
+    .eq("tenant_id", tenantId)
+    .neq("oauth_refresh_token", "");
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    platformId: r.platform_id as PlatformId,
+    accessToken: (r.oauth_token as string | null) ?? "",
+    refreshToken: (r.oauth_refresh_token as string | null) ?? "",
+    expiresAt: (r.oauth_expires_at as string | null) ?? null,
+  }));
+}
+
+/** Persist a rotated token set (platforms rotate the refresh token too). */
+export async function saveOAuthTokens(
+  tenantId: string,
+  id: string,
+  tokens: { accessToken: string; refreshToken: string; expiresAt: string },
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  await db
+    .from("nexoobs_destinations")
+    .update({
+      oauth_token: tokens.accessToken,
+      oauth_refresh_token: tokens.refreshToken,
+      oauth_expires_at: tokens.expiresAt,
+      status_kind: "ok",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("tenant_id", tenantId)
+    .eq("id", id);
+}
+
+/** Flag a destination's health (e.g. 'expired' when a token refresh fails —
+ *  the row then shows the Reconnect banner). */
+export async function markDestinationStatus(
+  tenantId: string,
+  id: string,
+  kind: "ok" | "offline" | "expired",
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  await db
+    .from("nexoobs_destinations")
+    .update({ status_kind: kind, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("id", id);
 }
 
 export async function removeDestination(

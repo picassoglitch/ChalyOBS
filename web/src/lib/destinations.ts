@@ -19,8 +19,9 @@ export interface DestinationConfig {
   ingestUrl: string;
   /** Stream key for outbound RTMP. Never serialize to non-secret storage. */
   streamKey: string;
-  /** OAuth refresh / access token for write actions (chat send, title update, etc.). */
-  oauthToken: string;
+  /** True when the row was auto-connected via platform OAuth (tokens stay
+   *  server-side — the client only ever sees this flag). */
+  oauthConnected: boolean;
   /** When true, this platform receives the next session. */
   enabled: boolean;
   /** Optional health/auth state surfaced as a banner under the row. */
@@ -106,6 +107,18 @@ export const PLATFORM_META: Record<PlatformId, PlatformMeta> = {
     supportsChat: false,
     supportsBroadcast: true,
   },
+};
+
+/** Platforms with a Restream-style OAuth auto-connect flow. Value is the
+ *  route that starts the flow (full-page navigation, not fetch — it 303s to
+ *  the platform's authorize page). Whether a given deploy can actually use
+ *  it depends on that platform's app credentials — the dashboard receives
+ *  that availability from the server (oauthAvailability()) and falls back
+ *  to manual entry when absent. Keep in sync with lib/oauth/providers.ts. */
+export const OAUTH_CONNECT_PATH: Partial<Record<PlatformId, string>> = {
+  kick: "/api/oauth/kick/start",
+  twitch: "/api/oauth/twitch/start",
+  youtube: "/api/oauth/youtube/start",
 };
 
 export const PLATFORM_ORDER: PlatformId[] = [

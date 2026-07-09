@@ -6,6 +6,7 @@ import {
   BroadcastMeta,
   DestinationConfig,
   DestinationStatus,
+  OAUTH_CONNECT_PATH,
   PLATFORM_META,
   PLATFORM_ORDER,
   PlatformId,
@@ -29,12 +30,25 @@ function isConfigured(d: Dest): boolean {
 interface ChannelsPanelProps {
   destinations: Dest[];
   broadcastMeta: BroadcastMeta;
+  /** Which OAuth platforms this deploy can actually connect. Each platform
+   *  connects its own way: available OAuth ones get a one-click Conectar,
+   *  the rest use manual entry with platform-specific guidance. */
+  oauthAvailable: Partial<Record<PlatformId, boolean>>;
   onToggle: (id: string) => void;
   onAddChannel: (platformId: PlatformId) => void;
   onPublishBroadcast: (meta: BroadcastMeta) => void;
   onRemove: (id: string) => void;
   onSaveDestination: (id: string, patch: ChannelPatch) => void;
   busy?: boolean;
+}
+
+/** Connect path only when the platform is OAuth-capable AND this deploy has
+ *  its credentials — otherwise the platform falls back to manual entry. */
+function connectPathFor(
+  platformId: PlatformId,
+  oauthAvailable: Partial<Record<PlatformId, boolean>>,
+): string | undefined {
+  return oauthAvailable[platformId] ? OAUTH_CONNECT_PATH[platformId] : undefined;
 }
 
 type Tab = "channels" | "chat";
@@ -67,6 +81,7 @@ export function ChannelsPanel(props: ChannelsPanelProps) {
           activeCount={activeCount}
           total={props.destinations.length}
           destinations={props.destinations}
+          oauthAvailable={props.oauthAvailable}
           onToggle={props.onToggle}
           onAddChannel={props.onAddChannel}
           onUpdateTitles={() => setComposing(true)}
@@ -137,6 +152,7 @@ function ChannelsTab({
   destinations,
   activeCount,
   total,
+  oauthAvailable,
   onToggle,
   onAddChannel,
   onUpdateTitles,
@@ -147,6 +163,7 @@ function ChannelsTab({
   destinations: Dest[];
   activeCount: number;
   total: number;
+  oauthAvailable: Partial<Record<PlatformId, boolean>>;
   onToggle: (id: string) => void;
   onAddChannel: (platformId: PlatformId) => void;
   onUpdateTitles: () => void;
@@ -190,10 +207,18 @@ function ChannelsTab({
           <div className="absolute top-full left-4 mt-1 z-20 w-56 rounded-lg border border-border bg-surface-elevated shadow-xl p-1">
             {available.map((id) => {
               const meta = PLATFORM_META[id];
+              const connectPath = connectPathFor(id, oauthAvailable);
               return (
                 <button
                   key={id}
                   onClick={() => {
+                    if (connectPath) {
+                      // Restream-style: OAuth platforms connect via the
+                      // platform's consent page — full navigation, and the
+                      // callback creates the row already configured.
+                      window.location.assign(connectPath);
+                      return;
+                    }
                     onAddChannel(id);
                     setPicking(false);
                   }}
@@ -203,7 +228,12 @@ function ChannelsTab({
                     className="w-2.5 h-2.5 rounded-full"
                     style={{ backgroundColor: `var(--color-${meta.colorVar})` }}
                   />
-                  {meta.displayName}
+                  <span className="flex-1">{meta.displayName}</span>
+                  {connectPath && (
+                    <span className="text-[9px] font-bold tracking-wider text-text-tertiary uppercase">
+                      1 clic
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -227,6 +257,7 @@ function ChannelsTab({
             <ChannelRow
               key={d.id}
               destination={d}
+              connectPath={connectPathFor(d.platformId, oauthAvailable)}
               onToggle={() => onToggle(d.id)}
               onRemove={() => onRemove(d.id)}
               onEdit={() => onEdit(d)}
@@ -241,12 +272,15 @@ function ChannelsTab({
 
 function ChannelRow({
   destination,
+  connectPath,
   onToggle,
   onRemove,
   onEdit,
   busy,
 }: {
   destination: Dest;
+  /** Present only when this platform's OAuth connect is available. */
+  connectPath?: string;
   onToggle: () => void;
   onRemove: () => void;
   onEdit: () => void;
@@ -292,10 +326,24 @@ function ChannelRow({
               }}
             />
             <span className="text-[10px] text-text-tertiary">
-              {configured ? "Configurado" : "Falta stream key"}
+              {destination.oauthConnected
+                ? "Auto-conectado"
+                : configured
+                  ? "Configurado"
+                  : "Falta stream key"}
             </span>
           </div>
         </div>
+
+        {connectPath && !destination.oauthConnected && (
+          <a
+            href={connectPath}
+            className="text-[11px] font-semibold px-2 py-1 rounded-md text-white hover:opacity-90 transition"
+            style={{ backgroundColor: color }}
+          >
+            Conectar
+          </a>
+        )}
 
         <button
           onClick={onRemove}
@@ -330,20 +378,35 @@ function ChannelRow({
       </div>
 
       {status && status.kind !== "ok" && status.kind !== "offline" && (
-        <StatusBanner status={status} />
+        <StatusBanner status={status} connectPath={connectPath} />
       )}
     </li>
   );
 }
 
-function StatusBanner({ status }: { status: DestinationStatus }) {
+function StatusBanner({
+  status,
+  connectPath,
+}: {
+  status: DestinationStatus;
+  connectPath?: string;
+}) {
   if (status.kind === "expired") {
     return (
       <div className="mt-1 mx-2 px-3 py-2 rounded-md bg-bad/10 border border-bad/40 flex items-center gap-2">
         <AlertIcon className="w-3.5 h-3.5 text-bad shrink-0" />
         <span className="text-[11px] text-text-secondary flex-1">
           Account access expired.{" "}
-          <span className="text-text-primary font-semibold">Reconnect</span>
+          {connectPath ? (
+            <a
+              href={connectPath}
+              className="text-text-primary font-semibold underline"
+            >
+              Reconnect
+            </a>
+          ) : (
+            <span className="text-text-primary font-semibold">Reconnect</span>
+          )}
         </span>
       </div>
     );

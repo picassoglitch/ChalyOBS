@@ -3,14 +3,30 @@ import { getServerSession } from "@/lib/server-session";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { getDestinations, getOrCreateSession } from "@/lib/data";
 import { isFullAccessTier } from "@/lib/tier";
+import { oauthAvailability } from "@/lib/oauth/providers";
 import { DashboardClient } from "./DashboardClient";
 
 // Per-tenant data — never cache across requests.
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getServerSession();
   if (!session) redirect("/login?next=/dashboard");
+
+  // Result of an OAuth auto-connect round-trip (/api/oauth/<platform>/…).
+  const params = await searchParams;
+  const connected = typeof params.connected === "string" ? params.connected : null;
+  const connectError =
+    typeof params.connect_error === "string" ? params.connect_error : null;
+  const connectNotice = connected
+    ? ({ kind: "ok", code: connected } as const)
+    : connectError
+      ? ({ kind: "error", code: connectError } as const)
+      : null;
 
   // If the DB isn't configured yet, surface a clear message instead of a
   // 500 — keeps the deploy diagnosable.
@@ -62,6 +78,10 @@ export default async function DashboardPage() {
       isFullAccess={isFullAccess}
       upgradeUrl={upgradeUrl}
       destinations={destinations}
+      connectNotice={connectNotice}
+      // Per-deploy: which platforms have OAuth app credentials configured.
+      // Unavailable ones show manual entry instead of a dead Connect button.
+      oauthAvailable={oauthAvailability()}
     />
   );
 }

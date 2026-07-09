@@ -64,6 +64,14 @@ export function ChannelEditModal({ destination, onClose, onSave, busy }: Props) 
           </button>
         </div>
 
+        {destination.oauthConnected && (
+          <div className="mb-4 px-3 py-2.5 rounded-lg bg-good/10 border border-good/40 text-[11px] text-text-secondary leading-relaxed">
+            Conectado con tu cuenta de {meta.displayName} — el ingest URL y el
+            stream key se rellenaron automáticamente y se actualizan al
+            reconectar. Normalmente no necesitas editarlos a mano.
+          </div>
+        )}
+
         <div className="space-y-4">
           <Field
             label="Nombre del canal / handle"
@@ -233,6 +241,10 @@ function keyHint(p: PlatformId): string {
       return "Kick → Settings → Stream Key.";
     case "facebook":
       return "Facebook Live Producer → usar clave de transmisión persistente.";
+    case "tiktok":
+      return "TikTok LIVE Center → requiere que tu cuenta tenga acceso a LIVE por RTMP (1000+ seguidores o invitación).";
+    case "restream":
+      return "Restream → Settings → Streaming setup → Stream key.";
     case "custom_rtmp":
       return "La clave/credencial que te dé tu servidor de destino.";
     case "custom_srt":
