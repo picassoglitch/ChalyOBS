@@ -34,6 +34,8 @@ interface ChannelsPanelProps {
    *  connects its own way: available OAuth ones get a one-click Conectar,
    *  the rest use manual entry with platform-specific guidance. */
   oauthAvailable: Partial<Record<PlatformId, boolean>>;
+  /** Opens the platform's OAuth consent in a popup (Restream-style). */
+  onConnect: (path: string) => void;
   onToggle: (id: string) => void;
   onAddChannel: (platformId: PlatformId) => void;
   onPublishBroadcast: (meta: BroadcastMeta) => void;
@@ -82,6 +84,7 @@ export function ChannelsPanel(props: ChannelsPanelProps) {
           total={props.destinations.length}
           destinations={props.destinations}
           oauthAvailable={props.oauthAvailable}
+          onConnect={props.onConnect}
           onToggle={props.onToggle}
           onAddChannel={props.onAddChannel}
           onUpdateTitles={() => setComposing(true)}
@@ -153,6 +156,7 @@ function ChannelsTab({
   activeCount,
   total,
   oauthAvailable,
+  onConnect,
   onToggle,
   onAddChannel,
   onUpdateTitles,
@@ -164,6 +168,7 @@ function ChannelsTab({
   activeCount: number;
   total: number;
   oauthAvailable: Partial<Record<PlatformId, boolean>>;
+  onConnect: (path: string) => void;
   onToggle: (id: string) => void;
   onAddChannel: (platformId: PlatformId) => void;
   onUpdateTitles: () => void;
@@ -214,12 +219,12 @@ function ChannelsTab({
                   onClick={() => {
                     if (connectPath) {
                       // Restream-style: OAuth platforms connect via the
-                      // platform's consent page — full navigation, and the
-                      // callback creates the row already configured.
-                      window.location.assign(connectPath);
-                      return;
+                      // platform's consent page in a popup; the callback
+                      // creates the row already configured.
+                      onConnect(connectPath);
+                    } else {
+                      onAddChannel(id);
                     }
-                    onAddChannel(id);
                     setPicking(false);
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-secondary hover:bg-surface-high hover:text-text-primary transition text-left"
@@ -258,6 +263,7 @@ function ChannelsTab({
               key={d.id}
               destination={d}
               connectPath={connectPathFor(d.platformId, oauthAvailable)}
+              onConnect={onConnect}
               onToggle={() => onToggle(d.id)}
               onRemove={() => onRemove(d.id)}
               onEdit={() => onEdit(d)}
@@ -273,6 +279,7 @@ function ChannelsTab({
 function ChannelRow({
   destination,
   connectPath,
+  onConnect,
   onToggle,
   onRemove,
   onEdit,
@@ -281,6 +288,7 @@ function ChannelRow({
   destination: Dest;
   /** Present only when this platform's OAuth connect is available. */
   connectPath?: string;
+  onConnect: (path: string) => void;
   onToggle: () => void;
   onRemove: () => void;
   onEdit: () => void;
@@ -336,13 +344,14 @@ function ChannelRow({
         </div>
 
         {connectPath && !destination.oauthConnected && (
-          <a
-            href={connectPath}
+          <button
+            type="button"
+            onClick={() => onConnect(connectPath)}
             className="text-[11px] font-semibold px-2 py-1 rounded-md text-white hover:opacity-90 transition"
             style={{ backgroundColor: color }}
           >
             Conectar
-          </a>
+          </button>
         )}
 
         <button
@@ -378,7 +387,11 @@ function ChannelRow({
       </div>
 
       {status && status.kind !== "ok" && status.kind !== "offline" && (
-        <StatusBanner status={status} connectPath={connectPath} />
+        <StatusBanner
+          status={status}
+          connectPath={connectPath}
+          onConnect={onConnect}
+        />
       )}
     </li>
   );
@@ -387,9 +400,11 @@ function ChannelRow({
 function StatusBanner({
   status,
   connectPath,
+  onConnect,
 }: {
   status: DestinationStatus;
   connectPath?: string;
+  onConnect: (path: string) => void;
 }) {
   if (status.kind === "expired") {
     return (
@@ -398,12 +413,13 @@ function StatusBanner({
         <span className="text-[11px] text-text-secondary flex-1">
           Account access expired.{" "}
           {connectPath ? (
-            <a
-              href={connectPath}
+            <button
+              type="button"
+              onClick={() => onConnect(connectPath)}
               className="text-text-primary font-semibold underline"
             >
               Reconnect
-            </a>
+            </button>
           ) : (
             <span className="text-text-primary font-semibold">Reconnect</span>
           )}

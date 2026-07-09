@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { EncoderPanel } from "@/components/EncoderPanel";
@@ -94,7 +94,62 @@ export function DashboardClient({
   oauthAvailable,
 }: Props) {
   const router = useRouter();
+  const [notice, setNotice] = useState(connectNotice);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
+  // True between opening a connect popup and hearing back from it — used to
+  // refresh on refocus when the popup can't postMessage (COOP severed the
+  // opener, or the flow ended on a platform error page).
+  const awaitingConnect = useRef(false);
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      const d = e.data as {
+        source?: string;
+        connected?: string | null;
+        connectError?: string | null;
+      };
+      if (d?.source !== "nexoobs-oauth") return;
+      awaitingConnect.current = false;
+      setNotice(
+        d.connected
+          ? { kind: "ok", code: d.connected }
+          : d.connectError
+            ? { kind: "error", code: d.connectError }
+            : null,
+      );
+      setNoticeDismissed(false);
+      router.refresh();
+    };
+    const onFocus = () => {
+      if (!awaitingConnect.current) return;
+      awaitingConnect.current = false;
+      router.refresh();
+    };
+    window.addEventListener("message", onMessage);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [router]);
+
+  /** Restream-style connect: the platform's consent/login opens in a popup;
+   *  /oauth/done postMessages the result back and closes it. Popup blocked →
+   *  degrade to a full-page navigation (the callback then lands on
+   *  /dashboard with the same banner params). */
+  const openConnect = (path: string) => {
+    awaitingConnect.current = true;
+    const popup = window.open(
+      path,
+      "nexoobs_connect",
+      "popup=yes,width=520,height=780",
+    );
+    if (!popup) {
+      awaitingConnect.current = false;
+      window.location.assign(path);
+    }
+  };
   const [title, setTitle] = useState(initialTitle);
   const [isLive, setIsLive] = useState(initialIsLive);
   const [clipsEnabled, setClipsEnabled] = useState(initialClips);
@@ -149,15 +204,15 @@ export function DashboardClient({
       />
 
       <main className="flex-1 px-4 py-6 sm:px-8 sm:py-8 max-w-7xl mx-auto w-full">
-        {connectNotice && !noticeDismissed && (
+        {notice && !noticeDismissed && (
           <div
             className={`mb-4 px-4 py-3 rounded-lg border flex items-center gap-3 text-sm ${
-              connectNotice.kind === "ok"
+              notice.kind === "ok"
                 ? "bg-good/10 border-good/40 text-text-primary"
                 : "bg-bad/10 border-bad/40 text-text-primary"
             }`}
           >
-            <span className="flex-1">{connectNoticeText(connectNotice)}</span>
+            <span className="flex-1">{connectNoticeText(notice)}</span>
             <button
               onClick={() => {
                 setNoticeDismissed(true);
@@ -196,6 +251,7 @@ export function DashboardClient({
             destinations={optimistic}
             broadcastMeta={broadcastMeta}
             oauthAvailable={oauthAvailable}
+            onConnect={openConnect}
             busy={pending}
             onToggle={(id) => {
               startTransition(async () => {
