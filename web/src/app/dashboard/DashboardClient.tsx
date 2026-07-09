@@ -8,7 +8,12 @@ import { ChannelsPanel } from "@/components/ChannelsPanel";
 import { Footer } from "@/components/Footer";
 import { buildIngest } from "@/lib/ingest";
 import { StreamPreview } from "@/components/StreamPreview";
-import { BroadcastMeta, DestinationConfig, PlatformId } from "@/lib/destinations";
+import {
+  BroadcastMeta,
+  DestinationConfig,
+  PLATFORM_META,
+  PlatformId,
+} from "@/lib/destinations";
 import { ChannelPatch } from "@/components/ChannelEditModal";
 import {
   addDestinationAction,
@@ -35,6 +40,38 @@ interface Props {
   isFullAccess: boolean;
   upgradeUrl: string;
   destinations: Dest[];
+  /** Result of an OAuth auto-connect round-trip, from ?connected= /
+   *  ?connect_error= on the callback redirect. */
+  connectNotice: { kind: "ok" | "error"; code: string } | null;
+  /** Which OAuth platforms this deploy has credentials for. */
+  oauthAvailable: Partial<Record<PlatformId, boolean>>;
+}
+
+/** Human copy for the connect-result banner. Codes come from the
+ *  /api/oauth/[platform]/callback redirects as `<platform>_<reason>`
+ *  (or a bare platform id on success). */
+function connectNoticeText(notice: { kind: "ok" | "error"; code: string }): string {
+  if (notice.kind === "ok") {
+    const name = platformDisplayName(notice.code);
+    return `${name} conectado — ingest URL y stream key se configuraron automáticamente.`;
+  }
+  const sep = notice.code.indexOf("_");
+  const name = platformDisplayName(sep > 0 ? notice.code.slice(0, sep) : "");
+  const reason = sep > 0 ? notice.code.slice(sep + 1) : notice.code;
+  switch (reason) {
+    case "denied":
+      return `Cancelaste la conexión con ${name}.`;
+    case "not_configured":
+      return `La conexión con ${name} no está configurada en este deploy (faltan sus credenciales OAuth).`;
+    case "state_mismatch":
+      return "La sesión de conexión expiró. Inténtalo de nuevo.";
+    default:
+      return `${name} no completó la conexión. Inténtalo de nuevo.`;
+  }
+}
+
+function platformDisplayName(id: string): string {
+  return PLATFORM_META[id as PlatformId]?.displayName ?? "La plataforma";
 }
 
 type OptimisticAction =
@@ -53,8 +90,11 @@ export function DashboardClient({
   isFullAccess,
   upgradeUrl,
   destinations,
+  connectNotice,
+  oauthAvailable,
 }: Props) {
   const router = useRouter();
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [title, setTitle] = useState(initialTitle);
   const [isLive, setIsLive] = useState(initialIsLive);
   const [clipsEnabled, setClipsEnabled] = useState(initialClips);
@@ -109,6 +149,28 @@ export function DashboardClient({
       />
 
       <main className="flex-1 px-4 py-6 sm:px-8 sm:py-8 max-w-7xl mx-auto w-full">
+        {connectNotice && !noticeDismissed && (
+          <div
+            className={`mb-4 px-4 py-3 rounded-lg border flex items-center gap-3 text-sm ${
+              connectNotice.kind === "ok"
+                ? "bg-good/10 border-good/40 text-text-primary"
+                : "bg-bad/10 border-bad/40 text-text-primary"
+            }`}
+          >
+            <span className="flex-1">{connectNoticeText(connectNotice)}</span>
+            <button
+              onClick={() => {
+                setNoticeDismissed(true);
+                // Drop ?connected/?connect_error so a reload doesn't re-show it.
+                router.replace("/dashboard");
+              }}
+              className="text-text-tertiary hover:text-text-primary text-lg leading-none"
+              aria-label="Cerrar aviso"
+            >
+              ×
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
           <div className="space-y-6">
             {/* Restream-style: the encoder card lives INSIDE the player while
@@ -133,6 +195,7 @@ export function DashboardClient({
           <ChannelsPanel
             destinations={optimistic}
             broadcastMeta={broadcastMeta}
+            oauthAvailable={oauthAvailable}
             busy={pending}
             onToggle={(id) => {
               startTransition(async () => {

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "@/lib/server-session";
 import { BroadcastMeta, PlatformId } from "@/lib/destinations";
 import { isFullAccessTier } from "@/lib/tier";
+import { pushBroadcastToConnectedPlatforms } from "@/lib/oauth/push";
 import {
   addDestination,
   publishBroadcastMeta,
@@ -90,5 +91,8 @@ export async function publishBroadcastAction(
 ): Promise<void> {
   const tenant = await requireTenant();
   await publishBroadcastMeta(tenant, meta);
+  // Then mirror to OAuth-connected platforms (Kick title/category/tags).
+  // Best-effort by design — platform outages only surface as row status.
+  await pushBroadcastToConnectedPlatforms(tenant, meta);
   revalidatePath("/dashboard");
 }
