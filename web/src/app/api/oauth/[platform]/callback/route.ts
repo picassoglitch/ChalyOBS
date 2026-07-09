@@ -25,12 +25,14 @@ export async function GET(
 ): Promise<NextResponse> {
   const { platform } = await ctx.params;
   const origin = resolvePublicOrigin(request);
-  const dashboard = new URL("/dashboard", origin);
+  // /oauth/done closes the connect popup and notifies the dashboard; with
+  // no opener it degrades to a /dashboard redirect with the same params.
+  const done = new URL("/oauth/done", origin);
   const cookieName = oauthCookieName(platform);
 
   const finish = (param: "connected" | "connect_error", value: string) => {
-    dashboard.searchParams.set(param, value);
-    const res = NextResponse.redirect(dashboard, { status: 303 });
+    done.searchParams.set(param, value);
+    const res = NextResponse.redirect(done, { status: 303 });
     res.cookies.delete(cookieName); // one-shot, never reusable
     return res;
   };
