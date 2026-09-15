@@ -105,7 +105,7 @@ export async function pkceChallengeS256(verifier: string): Promise<string> {
 export const OAUTH_COOKIE_TTL_SECONDS = 600;
 
 export function oauthCookieName(platformId: string): string {
-  return `nexoobs_oauth_${platformId}`;
+  return `chalybobs_oauth_${platformId}`;
 }
 
 export interface OAuthCookiePayload {

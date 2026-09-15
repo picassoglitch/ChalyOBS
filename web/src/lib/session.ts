@@ -1,9 +1,9 @@
 /**
- * NexoOBS session cookie — independent of the SSO secret.
+ * ChalyOBS session cookie — independent of the SSO secret.
  *
  * Stateless: the cookie carries the verified user claims directly, signed
- * with NEXOOBS_SESSION_SECRET. No DB lookup per request; revocation = wait
- * for expiry or rotate NEXOOBS_SESSION_SECRET (invalidates everyone).
+ * with CHALYBOBS_SESSION_SECRET. No DB lookup per request; revocation = wait
+ * for expiry or rotate CHALYBOBS_SESSION_SECRET (invalidates everyone).
  *
  * Same wire shape as the SSO token (base64url payload + base64url HMAC) so
  * we don't drag in two parsers. Different secret + longer TTL — the SSO
@@ -12,7 +12,7 @@
 
 import { b64urlDecode, b64urlDecodeString, b64urlEncode, b64urlEncodeString } from "./b64url";
 
-export const SESSION_COOKIE_NAME = "nexoobs_session";
+export const SESSION_COOKIE_NAME = "chalybobs_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 export interface SessionClaims {
@@ -35,7 +35,7 @@ export async function signSession(
   claims: Omit<SessionClaims, "exp"> & { exp?: number },
   secret: string,
 ): Promise<string> {
-  if (!secret) throw new SessionError("NEXOOBS_SESSION_SECRET missing");
+  if (!secret) throw new SessionError("CHALYBOBS_SESSION_SECRET missing");
   const exp =
     claims.exp ?? Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
   const payload: SessionClaims = {
@@ -66,7 +66,7 @@ export async function verifySession(
   cookieValue: string,
   secret: string,
 ): Promise<SessionClaims> {
-  if (!secret) throw new SessionError("NEXOOBS_SESSION_SECRET missing");
+  if (!secret) throw new SessionError("CHALYBOBS_SESSION_SECRET missing");
   if (!cookieValue) throw new SessionError("empty session");
 
   const dotAt = cookieValue.indexOf(".");

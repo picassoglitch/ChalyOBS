@@ -2,9 +2,9 @@
  * GET /api/me — viewer self-inspection.
  *
  * Returns the current session's identity + resolved access level, read from
- * the verified nexoobs_session cookie. No secrets, no other tenants — just
+ * the verified chalybobs_session cookie. No secrets, no other tenants — just
  * "who am I and does the app think I'm full access". Handy for diagnosing the
- * NexoClip switch being greyed out: it shows the exact `tier` value the SSO
+ * ChalyClip switch being greyed out: it shows the exact `tier` value the SSO
  * handoff delivered.
  */
 
@@ -23,7 +23,7 @@ export async function GET(): Promise<NextResponse> {
     authenticated: true,
     email: session.email,
     tenant_id: session.tenant_id,
-    // The raw tier claim as delivered by Nexo-AI's SSO token. `null` here means
+    // The raw tier claim as delivered by Chalyb's SSO token. `null` here means
     // the token carried no tier at all → that's why full access is off.
     tier: session.tier ?? null,
     isFullAccess: isFullAccessTier(session.tier),

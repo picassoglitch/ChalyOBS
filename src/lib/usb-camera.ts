@@ -1,5 +1,5 @@
 /**
- * Runtime-safe wrapper around the `nexo-uvc-camera` local Expo Module.
+ * Runtime-safe wrapper around the `chalyb-uvc-camera` local Expo Module.
  *
  * In a custom dev client (Phase 2+) the native module loads + `available`
  * is true. In stock Expo Go the require() throws, so we lazy-load with a
@@ -123,7 +123,7 @@ if (isIOS) {
 } else {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("nexo-uvc-camera");
+    const mod = require("chalyb-uvc-camera");
     const Native = mod.default;
     api = {
       available: true,

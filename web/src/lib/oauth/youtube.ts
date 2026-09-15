@@ -17,7 +17,7 @@ import {
  * falls back to the stored one). There is no single "stream key" API either:
  * the equivalent is a REUSABLE liveStream resource, whose cdn.ingestionInfo
  * holds ingestionAddress (+ streamName as the key). We reuse the user's
- * existing RTMP stream or create one named "NexoOBS".
+ * existing RTMP stream or create one named "ChalyOBS".
  *
  * Metadata (title/description/visibility) applies per-BROADCAST on YouTube,
  * not per-channel, so there is no pushMeta here — the composer's values are
@@ -32,8 +32,8 @@ const API_BASE = "https://www.googleapis.com/youtube/v3";
 const SCOPES = "https://www.googleapis.com/auth/youtube";
 
 function readEnv(): { clientId: string; clientSecret: string } | null {
-  const clientId = process.env.NEXOOBS_YOUTUBE_CLIENT_ID;
-  const clientSecret = process.env.NEXOOBS_YOUTUBE_CLIENT_SECRET;
+  const clientId = process.env.CHALYBOBS_YOUTUBE_CLIENT_ID;
+  const clientSecret = process.env.CHALYBOBS_YOUTUBE_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };
 }
@@ -130,7 +130,7 @@ async function fetchConnection(
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({
-        snippet: { title: "NexoOBS" },
+        snippet: { title: "ChalyOBS" },
         cdn: {
           ingestionType: "rtmp",
           resolution: "variable",

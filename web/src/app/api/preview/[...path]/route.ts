@@ -1,7 +1,7 @@
 /**
  * GET /api/preview/<...>   — authenticated HLS preview proxy.
  *
- * The relay (nexoclip-live MediaMTX) serves HLS on its PRIVATE Railway
+ * The relay (chalybclip-live MediaMTX) serves HLS on its PRIVATE Railway
  * address only — never publicly. This route is the single public door:
  *
  *   1. Verify the session cookie → tenant.
@@ -9,7 +9,7 @@
  *   3. Proxy the request to  <internal>/live/<streamKey>/<...path>  and
  *      stream the bytes back.
  *
- * The browser only ever talks to NexoOBS (same origin, no CORS), the stream
+ * The browser only ever talks to ChalyOBS (same origin, no CORS), the stream
  * key never appears in a browser URL, and a tenant can only ever reach
  * their OWN stream. The player requests /api/preview/index.m3u8; the
  * relative segment URLs in the manifest resolve back under /api/preview/.
@@ -22,7 +22,7 @@ import { getStreamKey } from "@/lib/data";
 export const dynamic = "force-dynamic";
 
 function internalBase(): string | null {
-  const base = process.env.NEXOOBS_RELAY_INTERNAL_HLS;
+  const base = process.env.CHALYBOBS_RELAY_INTERNAL_HLS;
   return base ? base.replace(/\/+$/, "") : null;
 }
 

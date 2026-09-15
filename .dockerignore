@@ -1,0 +1,18 @@
+# Only web/ is needed to build the Cloud Run image.
+.git
+**/node_modules
+**/.next
+**/.env
+**/.env.local
+**/.env.*.local
+# React Native app (built with EAS, not in this image)
+android
+ios
+.expo
+.expo-shared
+app
+src
+modules
+*.apk
+*.aab
+*.ipa

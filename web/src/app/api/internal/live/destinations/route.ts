@@ -1,13 +1,13 @@
 /**
  * GET /api/internal/live/destinations?stream_id=<tenant>__<random>
  *
- * Called by the nexoclip-live relay's on_ready hook to fan the single
+ * Called by the chalybclip-live relay's on_ready hook to fan the single
  * ingest out to every enabled + configured platform. Returns each as a
  * complete RTMP push URL (ingest + key) the relay feeds to
  * `ffmpeg -c copy -f flv`.
  *
- * Contract (matches nexoclip-live/scripts/on_ready.sh):
- *   Auth:  Authorization: Bearer <NEXOOBS_RELAY_SECRET>
+ * Contract (matches chalybclip-live/scripts/on_ready.sh):
+ *   Auth:  Authorization: Bearer <CHALYBOBS_RELAY_SECRET>
  *   200:   { destinations: [{ platform, push_url }] }
  */
 

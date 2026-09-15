@@ -1,13 +1,13 @@
 import { SupabaseBackend } from "./supabase-backend";
 import type { BackendClient } from "./client";
 
-/** Default backend: Supabase against the Nexo-AI World project. */
+/** Default backend: Supabase against the Chalyb project. */
 export const backend: BackendClient = new SupabaseBackend();
 
 export type { BackendClient } from "./client";
 export type {
   HealthSample,
-  NexoSession,
+  ChalybSession,
   OperatorRole,
   PlatformConnection,
   PlatformId,

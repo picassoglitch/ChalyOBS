@@ -12,21 +12,21 @@ export const es = {
     settings: "Ajustes",
   },
   topBar: {
-    title: "NEXOSTREAMOBS",
-    subtitle: "ENGINE DE TRANSMISIÓN · NEXO-AI WORLD",
+    title: "CHALYBOBS",
+    subtitle: "ENGINE DE TRANSMISIÓN · CHALYB",
   },
   login: {
     title: "INICIAR SESIÓN",
     subtitle:
-      "Inicia sesión con tu cuenta de Nexo-AI World. Es la misma cuenta que usas en nexo-ai.world y en NexoClip.",
+      "Inicia sesión con tu cuenta de Chalyb. Es la misma cuenta que usas en chalyb.com y en ChalyClip.",
     email: "CORREO",
     password: "CONTRASEÑA",
     cta: "INICIAR SESIÓN",
     or: "O",
     google: "CONTINUAR CON GOOGLE",
-    noAccount: "¿No tienes cuenta? Créala en nexo-ai.world",
+    noAccount: "¿No tienes cuenta? Créala en chalyb.com",
     footer:
-      "NexoStreamOBS (NSO) es un engine de Nexo-AI World. Tus credenciales y perfil viven en Nexo — aquí solo se reflejan.",
+      "ChalyOBS es un engine de Chalyb. Tus credenciales y perfil viven en Chalyb — aquí solo se reflejan.",
     error: "Error al iniciar sesión",
   },
   lobby: {

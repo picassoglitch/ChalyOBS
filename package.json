@@ -1,5 +1,5 @@
 {
-  "name": "nexo-ai-world",
+  "name": "chalybobs",
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
@@ -37,8 +37,8 @@
     "react-native-gesture-handler": "~2.28.0",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "nexo-streaming": "file:./modules/nexo-streaming",
-    "nexo-uvc-camera": "file:./modules/nexo-uvc-camera",
+    "chalyb-streaming": "file:./modules/chalyb-streaming",
+    "chalyb-uvc-camera": "file:./modules/chalyb-uvc-camera",
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^3.0.0",
     "react-native-web": "~0.21.0"

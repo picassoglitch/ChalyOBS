@@ -1,7 +1,7 @@
 /**
- * Single Supabase client instance — points at the same Nexo-AI World
- * project (`uqcbziwdgbnzehipzjxp.supabase.co`) that NexoClip + the web app
- * use, so NexoOBS is just another engine sitting on top of Nexo's auth
+ * Single Supabase client instance — points at the same Chalyb
+ * project (`uqcbziwdgbnzehipzjxp.supabase.co`) that ChalyClip + the web app
+ * use, so ChalyOBS is just another engine sitting on top of Chalyb's auth
  * and `profiles` table.
  *
  * Anon key is public-by-design — safe to embed in the mobile bundle. RLS
@@ -43,5 +43,5 @@ export const supabase = createClient(
 
 export const supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
-/** Slug NexoOBS uses in Nexo's engines registry. */
-export const ENGINE_SLUG = process.env.EXPO_PUBLIC_ENGINE_SLUG ?? "nexoobs";
+/** Slug ChalyOBS uses in Chalyb's engines registry. */
+export const ENGINE_SLUG = process.env.EXPO_PUBLIC_ENGINE_SLUG ?? "chalybobs";

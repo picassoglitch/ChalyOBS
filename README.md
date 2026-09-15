@@ -1,12 +1,12 @@
-# NexoStreamOBS (NSO)
+# ChalyOBS
 
-Engine de transmisión móvil para Nexo-AI World — pareja un DJI Osmo Pocket 3 con un teléfono para hacer multistreaming a Kick / Twitch / YouTube / TikTok / Restream con chat unificado y control de permisos. Vive junto a NexoClip dentro del registry de engines de Nexo-AI World.
+Engine de transmisión móvil para Chalyb — pareja un DJI Osmo Pocket 3 con un teléfono para hacer multistreaming a Kick / Twitch / YouTube / TikTok / Restream con chat unificado y control de permisos. Vive junto a ChalyClip dentro del registry de engines de Chalyb.
 
 Roles cooperativos:
 - **Camera Operator Mode** (Android): UVC preview of the Osmo, real-time chat overlay, stream-health display, optional stream-start permission.
 - **Streamer Mode** (iOS or Android): remote preview, cross-platform chat with reply, profile + destination + permission management.
 
-Built on **Expo SDK 54** / **React Native 0.81** / **TypeScript** with file-based routing via Expo Router. Auth + profile are sourced from the Nexo-AI World Supabase project.
+Built on **Expo SDK 54** / **React Native 0.81** / **TypeScript** with file-based routing via Expo Router. Auth + profile are sourced from the Chalyb Supabase project.
 
 ---
 
@@ -17,7 +17,7 @@ Built on **Expo SDK 54** / **React Native 0.81** / **TypeScript** with file-base
 | **0** | Stock **Expo Go** on iOS + Android | Auth, profiles, role selector, full UI shell, real Kick chat (read), permission system, mock backend |
 | **0.5** | Stock Expo Go | Kick OAuth 2.1 PKCE flow for sending chat messages |
 | **1** | **Dev build** via EAS, iOS + Android | Real RTMP from phone camera (RootEncoder on Android, HaishinKit on iOS), secure stream-key vault, reconnect-on-drop, audio source select, local recording |
-| **1.5** | Dev build, Android | `nexo-usb-probe` diagnostic module — dumps Osmo's USB descriptors so the frame pump targets the actual endpoint shape |
+| **1.5** | Dev build, Android | `chalyb-usb-probe` diagnostic module — dumps Osmo's USB descriptors so the frame pump targets the actual endpoint shape |
 | **2** | Dev build, **Android only** | Custom UVC integration for Osmo Pocket 3 via `CameraSource` interface; hot-swap source without restarting stream |
 | **3** | Dev build, both | WebRTC low-latency remote preview between operator and streamer |
 
@@ -48,11 +48,11 @@ Scan the QR with **Expo Go** on your iPhone or Samsung S22 Ultra. Edit any `.tsx
 
 ## Google OAuth setup (one-time, Supabase dashboard)
 
-NSO signs in via the Nexo-AI World Supabase project. For the "Continuar con Google" button to bounce back to the app after sign-in, the runtime redirect URI must be in the project's redirect-URL allowlist.
+ChalyOBS signs in via the Chalyb Supabase project. For the "Continuar con Google" button to bounce back to the app after sign-in, the runtime redirect URI must be in the project's redirect-URL allowlist.
 
 1. Open https://supabase.com/dashboard/project/uqcbziwdgbnzehipzjxp/auth/url-configuration
 2. Under **Redirect URLs**, add (one per line, wildcards allowed):
-   - `nexoaiworld://**` — dev client + standalone builds
+   - `chalybobs://**` — dev client + standalone builds
    - `exp://**` — Expo Go (the host:port part changes per LAN session)
 3. Save.
 
@@ -81,8 +81,8 @@ You only rebuild the dev client when native code changes (additions to `modules/
 
 ### What lights up in the dev client (Phase 1+)
 
-- `modules/nexo-streaming` (Android, RootEncoder) — `streaming.start({ url, streamKey, ... })` opens Camera2, encodes H.264 + AAC via MediaCodec, publishes to RTMP. **Scaffolded** (module compiles + registers) in Phase 1.A; broadcast wiring lands in Phase 1.B.
-- `modules/nexo-uvc-camera` (Android only) — Osmo Pocket 3 USB-C UVC capture via raw `UsbManager`. Comes online in Phase 2.
+- `modules/chalyb-streaming` (Android, RootEncoder) — `streaming.start({ url, streamKey, ... })` opens Camera2, encodes H.264 + AAC via MediaCodec, publishes to RTMP. **Scaffolded** (module compiles + registers) in Phase 1.A; broadcast wiring lands in Phase 1.B.
+- `modules/chalyb-uvc-camera` (Android only) — Osmo Pocket 3 USB-C UVC capture via raw `UsbManager`. Comes online in Phase 2.
 
 In Expo Go (Phase 0) both modules are stubbed; the JS side reads `streaming.available === false` and the UI shows a "dev build required" banner instead of crashing.
 
@@ -108,9 +108,9 @@ src/
   store/                       Auth + session + permissions slices
 
 modules/                     Local Expo native modules (Phase 1+)
-  nexo-streaming/              RTMP broadcaster (iOS + Android)
-  nexo-uvc-camera/             UVC capture (Android only)
-  nexo-usb-probe/              Phase-1.5 diagnostic (descriptor dump)
+  chalyb-streaming/              RTMP broadcaster (iOS + Android)
+  chalyb-uvc-camera/             UVC capture (Android only)
+  chalyb-usb-probe/              Phase-1.5 diagnostic (descriptor dump)
 ```
 
 ## Feature matrix by platform
@@ -129,4 +129,4 @@ modules/                     Local Expo native modules (Phase 1+)
 
 ## License
 
-Private. © Nexo-AI.
+Private. © Chalyb.

@@ -36,8 +36,8 @@ export default async function DashboardPage({
         <div className="max-w-md">
           <h1 className="text-xl font-bold mb-2">Base de datos no configurada</h1>
           <p className="text-text-tertiary text-sm">
-            Falta <code className="font-mono">NEXOOBS_SUPABASE_URL</code> y{" "}
-            <code className="font-mono">NEXOOBS_SUPABASE_SECRET_KEY</code>{" "}
+            Falta <code className="font-mono">CHALYBOBS_SUPABASE_URL</code> y{" "}
+            <code className="font-mono">CHALYBOBS_SUPABASE_SECRET_KEY</code>{" "}
             en Railway. El multi-tenant no puede cargar sin ellas.
           </p>
         </div>
@@ -52,18 +52,18 @@ export default async function DashboardPage({
   ]);
 
   // The reachable RTMP endpoint of the relay (Railway TCP-proxy host:port).
-  // Set in Railway as NEXOOBS_RELAY_RTMP_URL.
+  // Set in Railway as CHALYBOBS_RELAY_RTMP_URL.
   const relayRtmp =
-    process.env.NEXOOBS_RELAY_RTMP_URL ?? "rtmp://ingest.nexo-ai.world/live";
+    process.env.CHALYBOBS_RELAY_RTMP_URL ?? "rtmp://ingest.chalyb.com/live";
   // Preview is available when the relay's private HLS address is set; the
   // player then pulls from the authenticated same-origin proxy.
-  const previewEnabled = Boolean(process.env.NEXOOBS_RELAY_INTERNAL_HLS);
-  // The NexoClip connection switch is full-access only (ALL_ACCESS or
+  const previewEnabled = Boolean(process.env.CHALYBOBS_RELAY_INTERNAL_HLS);
+  // The ChalyClip connection switch is full-access only (ALL_ACCESS or
   // PARTNER). Definition lives in @/lib/tier so the server-side gate matches.
   const isFullAccess = isFullAccessTier(session.tier);
-  // Upgrade lands on Nexo-AI World (plans live there, not in NexoOBS).
+  // Upgrade lands on Chalyb (plans live there, not in ChalyOBS).
   const upgradeUrl = (
-    process.env.NEXO_AI_LOGIN_URL ?? "https://nexo-ai.world/login"
+    process.env.CHALYB_LOGIN_URL ?? "https://chalyb.com/login"
   ).replace(/\/login\/?$/, "");
 
   return (

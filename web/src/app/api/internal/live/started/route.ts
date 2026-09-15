@@ -2,8 +2,8 @@
  * POST /api/internal/live/started   { stream_id, tenant_id, recording_path }
  *
  * Relay tells us the push went live. We flip the tenant's session to live so
- * the dashboard badge reflects reality, and — when the NexoClip connection
- * is on — forward the start to NexoClip so it records the stream for
+ * the dashboard badge reflects reality, and — when the ChalyClip connection
+ * is on — forward the start to ChalyClip so it records the stream for
  * clipping. Bearer-authed.
  *
  * stream_id is unique per session (<tenant>__<random>); tenant_id is echoed
@@ -18,7 +18,7 @@ import {
   tenantFromStreamId,
   updateSession,
 } from "@/lib/data";
-import { nexoclipStarted } from "@/lib/nexoclip";
+import { chalybclipStarted } from "@/lib/chalybclip";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!checkRelayBearer(request.headers.get("authorization"))) {
@@ -39,13 +39,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   await updateSession(tenantId, { isLive: true });
 
-  // Hand off to NexoClip's pipeline when the connection is on. Forward the
-  // operator's broadcast title so NexoClip shows the real stream name
+  // Hand off to ChalyClip's pipeline when the connection is on. Forward the
+  // operator's broadcast title so ChalyClip shows the real stream name
   // instead of an auto-generated tag. (getClipsEnabled stays the gate — its
   // null-default differs from getOrCreateSession's, so don't conflate them.)
   if (await getClipsEnabled(tenantId)) {
     const session = await getOrCreateSession(tenantId);
-    await nexoclipStarted({
+    await chalybclipStarted({
       streamId,
       tenantId,
       recordingPath: body.recording_path ?? `live/${streamId}`,

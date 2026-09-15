@@ -1,11 +1,11 @@
 /**
- * SSO token verifier — TypeScript port of NexoClip's
- * `nexoclip/integrations/nexo_ai/sso.py`. Wire-compatible byte for byte:
+ * SSO token verifier — TypeScript port of ChalyClip's
+ * `chalybclip/integrations/chalyb/sso.py`. Wire-compatible byte for byte:
  *
  *   token = base64url(payload_json) + "." + base64url(HMAC-SHA256(payload_b64, secret))
  *
- * Payload claims (matches Nexo-AI's signLaunchToken in
- * `src/lib/engines/integrations/nexoclip.ts`):
+ * Payload claims (matches Chalyb's signLaunchToken in
+ * `src/lib/engines/integrations/chalybclip.ts`):
  *
  *   { user_id, email, tenant_id, tier?, exp }
  *
@@ -19,7 +19,7 @@ export interface SsoPayload {
   user_id: string;
   email: string;
   tenant_id: string;
-  /** 'free' | 'pro' | 'all_access' — set when Nexo-AI minted with tier. */
+  /** 'free' | 'pro' | 'all_access' — set when Chalyb minted with tier. */
   tier?: string;
   /** Unix seconds. */
   exp: number;
@@ -32,7 +32,7 @@ export class SsoTokenError extends Error {
   }
 }
 
-/** Verify a token minted by Nexo-AI. Throws SsoTokenError on any failure
+/** Verify a token minted by Chalyb. Throws SsoTokenError on any failure
  *  — caller turns those into a single user-facing error page rather than
  *  telling an attacker *why* their forgery didn't work. */
 export async function verifySsoToken(
@@ -42,7 +42,7 @@ export async function verifySsoToken(
   const { secret, nowSeconds, leewaySeconds = 0 } = options;
   if (!secret) {
     throw new SsoTokenError(
-      "NEXOOBS_SSO_SECRET not configured on this NexoOBS instance",
+      "CHALYBOBS_SSO_SECRET not configured on this ChalyOBS instance",
     );
   }
   if (!token) throw new SsoTokenError("empty token");

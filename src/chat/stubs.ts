@@ -33,7 +33,7 @@ class StubProvider implements ChatProvider {
 
 export const twitchStub = new StubProvider(
   "twitch",
-  "Twitch IRC todavía no está conectado en NexoStreamOBS. Conexión anónima vía wss://irc-ws.chat.twitch.tv + OAuth para enviar — TODO Fase 0.5.",
+  "Twitch IRC todavía no está conectado en ChalyOBS. Conexión anónima vía wss://irc-ws.chat.twitch.tv + OAuth para enviar — TODO Fase 0.5.",
 );
 
 export const youtubeStub = new StubProvider(

@@ -1,9 +1,9 @@
 /**
  * GET /auth/sso?token=<hmac-signed>
  *
- * Endpoint Nexo-AI redirects the browser to after the user clicks "Launch
- * NexoOBS" from nexo-ai.world. We verify the HMAC signature against
- * NEXOOBS_SSO_SECRET, mint our own long-lived session cookie, and 303 to
+ * Endpoint Chalyb redirects the browser to after the user clicks "Launch
+ * ChalyOBS" from chalyb.com. We verify the HMAC signature against
+ * CHALYBOBS_SSO_SECRET, mint our own long-lived session cookie, and 303 to
  * /dashboard.
  *
  * Failure modes (token missing / bad signature / expired) render the
@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { readNexoEnv, resolvePublicOrigin } from "@/lib/env";
+import { readChalybEnv, resolvePublicOrigin } from "@/lib/env";
 import { signSession, SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@/lib/session";
 import { SsoTokenError, verifySsoToken } from "@/lib/sso";
 
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // behind Railway's proxy). All redirects build off this.
   const origin = resolvePublicOrigin(request);
 
-  const env = readNexoEnv();
+  const env = readChalybEnv();
   if (!env) {
     return redirectToLogin(origin, "service_not_configured");
   }

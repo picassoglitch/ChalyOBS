@@ -1,15 +1,15 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { readNexoEnv } from "./env";
+import { readChalybEnv } from "./env";
 import { SESSION_COOKIE_NAME, SessionClaims, verifySession } from "./session";
 
 /**
- * Read + verify the NexoOBS session cookie in a Server Component / Server
+ * Read + verify the ChalyOBS session cookie in a Server Component / Server
  * Action. Returns the tenant claims or null (caller redirects to /login).
  * This is the single source of tenant identity for all data access.
  */
 export async function getServerSession(): Promise<SessionClaims | null> {
-  const env = readNexoEnv();
+  const env = readChalybEnv();
   if (!env) return null;
   const store = await cookies();
   const cookie = store.get(SESSION_COOKIE_NAME);

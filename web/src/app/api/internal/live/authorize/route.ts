@@ -1,12 +1,12 @@
 /**
  * POST /api/internal/live/authorize
  *
- * Called by the nexoclip-live relay's on_ready hook when an encoder pushes
- * RTMP to live/<stream_key>. We validate the key against nexoobs_sessions
+ * Called by the chalybclip-live relay's on_ready hook when an encoder pushes
+ * RTMP to live/<stream_key>. We validate the key against chalybobs_sessions
  * and return the tenant so the relay can register + fan out.
  *
- * Contract (matches nexoclip-live/scripts/on_ready.sh):
- *   Auth:  Authorization: Bearer <NEXOOBS_RELAY_SECRET>
+ * Contract (matches chalybclip-live/scripts/on_ready.sh):
+ *   Auth:  Authorization: Bearer <CHALYBOBS_RELAY_SECRET>
  *   Body:  { path: "live/<key>", action: "publish", ip }
  *   200:   { stream_id, tenant_id, recording_path }
  *   401/403: rejected → relay ignores the push (ages out)

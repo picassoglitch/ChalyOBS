@@ -30,8 +30,8 @@ const TWITCH_INGEST = "rtmp://live.twitch.tv/app";
 const SCOPES = ["channel:read:stream_key", "channel:manage:broadcast"].join(" ");
 
 function readEnv(): { clientId: string; clientSecret: string } | null {
-  const clientId = process.env.NEXOOBS_TWITCH_CLIENT_ID;
-  const clientSecret = process.env.NEXOOBS_TWITCH_CLIENT_SECRET;
+  const clientId = process.env.CHALYBOBS_TWITCH_CLIENT_ID;
+  const clientSecret = process.env.CHALYBOBS_TWITCH_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };
 }

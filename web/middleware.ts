@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readNexoEnv } from "@/lib/env";
+import { readChalybEnv } from "@/lib/env";
 import { SESSION_COOKIE_NAME, verifySession } from "@/lib/session";
 
 /**
- * Edge-runtime middleware. NexoOBS is an agent of Nexo-AI World — it only
- * works for users signed in through Nexo-AI. Every protected route requires
- * a valid NexoOBS session cookie (minted by /auth/sso after Nexo-AI SSO).
+ * Edge-runtime middleware. ChalyOBS is an agent of Chalyb — it only
+ * works for users signed in through Chalyb. Every protected route requires
+ * a valid ChalyOBS session cookie (minted by /auth/sso after Chalyb SSO).
  *
  * FAIL CLOSED: no session, bad/expired cookie, OR missing server secrets all
- * redirect to /login (which bounces to Nexo-AI). There is no
+ * redirect to /login (which bounces to Chalyb). There is no
  * unauthenticated bypass — a misconfigured deploy locks users out rather
  * than exposing the app.
  */
@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return response;
   };
 
-  const env = readNexoEnv();
+  const env = readChalybEnv();
   // No secrets configured → we can't verify any session → fail closed.
   if (!env) return redirectToLogin(false);
 

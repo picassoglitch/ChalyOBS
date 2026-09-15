@@ -13,8 +13,8 @@
  *
  * The redirect URI is derived per-runtime:
  *   - Expo Go:     `exp://<host>:<port>/--/auth/callback`
- *   - Dev client:  `nexoaiworld://auth/callback`
- *   - Standalone:  `nexoaiworld://auth/callback`
+ *   - Dev client:  `chalybobs://auth/callback`
+ *   - Standalone:  `chalybobs://auth/callback`
  *
  * The matching URLs MUST be in the Supabase project's Auth → URL
  * Configuration → Redirect URLs allowlist. See README §Google OAuth setup.

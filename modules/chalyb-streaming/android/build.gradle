@@ -1,7 +1,7 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
-group = 'expo.modules.nexostreaming'
+group = 'expo.modules.chalybstreaming'
 version = '0.1.0'
 
 def expoModulesCorePlugin = new File(
@@ -15,7 +15,7 @@ useDefaultAndroidSdkVersions()
 useExpoPublishing()
 
 android {
-  namespace "expo.modules.nexostreaming"
+  namespace "expo.modules.chalybstreaming"
   defaultConfig {
     versionCode 1
     versionName "0.1.0"

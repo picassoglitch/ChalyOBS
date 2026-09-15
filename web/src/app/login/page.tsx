@@ -1,12 +1,12 @@
-import { missingNexoEnvVars, readNexoEnv } from "@/lib/env";
+import { missingChalybEnvVars, readChalybEnv } from "@/lib/env";
 
 interface LoginPageProps {
   searchParams: Promise<{ next?: string; error?: string }>;
 }
 
 /**
- * Login is just a redirect-to-Nexo-AI bounce. We don't host credentials
- * here — Nexo-AI mints an SSO token and the browser lands back on
+ * Login is just a redirect-to-Chalyb bounce. We don't host credentials
+ * here — Chalyb mints an SSO token and the browser lands back on
  * /auth/sso?token=... which sets our session cookie.
  *
  * When env vars are missing this page surfaces the exact var names so
@@ -14,17 +14,17 @@ interface LoginPageProps {
  */
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { next, error } = await searchParams;
-  const env = readNexoEnv();
-  const missing = missingNexoEnvVars();
+  const env = readChalybEnv();
+  const missing = missingChalybEnvVars();
   const configured = env !== null;
 
   return (
     <div className="flex-1 flex items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-2">Entrar a NexoOBS</h1>
+          <h1 className="text-2xl font-bold mb-2">Entrar a ChalyOBS</h1>
           <p className="text-text-tertiary text-sm">
-            Autenticate desde Nexo-AI World.
+            Autenticate desde Chalyb.
           </p>
         </div>
 
@@ -33,7 +33,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <strong className="text-warn block mb-1">
               Servicio no configurado.
             </strong>
-            Faltan variables en Railway. NexoOBS no puede iniciar sesión hasta
+            Faltan variables en Railway. ChalyOBS no puede iniciar sesión hasta
             que estén definidas:
             <ul className="mt-1 ml-4 list-disc font-mono text-[11px]">
               {missing.map((v) => (
@@ -45,10 +45,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {configured && (
           <a
-            href={buildNexoAiLoginUrl(env, next)}
+            href={buildChalybLoginUrl(env, next)}
             className="w-full flex items-center justify-center gap-3 py-3 rounded-lg bg-accent text-white hover:opacity-90 transition text-sm font-semibold"
           >
-            Continuar con Nexo-AI World →
+            Continuar con Chalyb →
           </a>
         )}
 
@@ -60,23 +60,23 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         )}
 
         <p className="mt-8 text-center text-[11px] text-text-tertiary">
-          NexoOBS es un agente de Nexo-AI World — tu sesión vive ahí.
+          ChalyOBS es un agente de Chalyb — tu sesión vive ahí.
         </p>
       </div>
     </div>
   );
 }
 
-function buildNexoAiLoginUrl(
-  env: NonNullable<ReturnType<typeof readNexoEnv>>,
+function buildChalybLoginUrl(
+  env: NonNullable<ReturnType<typeof readChalybEnv>>,
   next: string | undefined,
 ): string {
   const returnTo = new URL(next ?? "/dashboard", env.publicUrl).toString();
-  const url = new URL(env.nexoAiLoginUrl);
-  // Nexo-AI's login accepts a return_to that, after auth, becomes the
-  // base used to build the SSO launch URL. Naming mirrors what Nexo-AI's
+  const url = new URL(env.chalybLoginUrl);
+  // Chalyb's login accepts a return_to that, after auth, becomes the
+  // base used to build the SSO launch URL. Naming mirrors what Chalyb's
   // launch URL builder expects.
-  url.searchParams.set("engine", "nexoobs");
+  url.searchParams.set("engine", "chalybobs");
   url.searchParams.set("return_to", returnTo);
   return url.toString();
 }
