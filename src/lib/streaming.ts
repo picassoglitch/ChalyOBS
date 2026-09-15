@@ -1,5 +1,5 @@
 /**
- * Cross-runtime wrapper around the `nexo-streaming` local Expo Module.
+ * Cross-runtime wrapper around the `chalyb-streaming` local Expo Module.
  *
  * In a custom dev client (Phase 1+) the native module loads and `available`
  * is true. In stock Expo Go the import would throw, so we lazy-require with
@@ -91,7 +91,7 @@ if (isExpoGo) {
 } else {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("nexo-streaming");
+    const mod = require("chalyb-streaming");
     const Native = mod.default;
     api = {
       available: true,

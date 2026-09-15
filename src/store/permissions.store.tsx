@@ -11,7 +11,7 @@ import type { Permissions } from "@/backend";
 import { defaultPermissions } from "@/backend";
 import { kv } from "./kv";
 
-const PERMS_KEY = "nexo.permissions.v1";
+const PERMS_KEY = "chalyb.permissions.v1";
 
 interface PermissionsState {
   permissions: Permissions;

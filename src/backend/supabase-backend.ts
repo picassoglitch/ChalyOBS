@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import type { BackendClient } from "./client";
 import type {
   HealthSample,
-  NexoSession,
+  ChalybSession,
   PlatformConnection,
   PlatformId,
   SubscriptionTier,
@@ -65,7 +65,7 @@ function profileToSession(
   userId: string,
   emailFallback: string | null,
   profile: ProfileRow | null,
-): NexoSession {
+): ChalybSession {
   return {
     userId,
     email: profile?.email ?? emailFallback,
@@ -96,14 +96,14 @@ function translateAuthError(message: string): string {
 }
 
 /**
- * Talks to the Nexo-AI World Supabase project. Profiles are read from
- * `public.profiles` — same row the Next.js shell + NexoClip read.
+ * Talks to the Chalyb Supabase project. Profiles are read from
+ * `public.profiles` — same row the Next.js shell + ChalybClip read.
  */
 export class SupabaseBackend implements BackendClient {
   async signInWithPassword(
     email: string,
     password: string,
-  ): Promise<NexoSession> {
+  ): Promise<ChalybSession> {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -114,7 +114,7 @@ export class SupabaseBackend implements BackendClient {
     return profileToSession(data.user.id, data.user.email ?? null, profile);
   }
 
-  async getCurrentSession(): Promise<NexoSession | null> {
+  async getCurrentSession(): Promise<ChalybSession | null> {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -127,7 +127,7 @@ export class SupabaseBackend implements BackendClient {
     await supabase.auth.signOut();
   }
 
-  onAuthChange(handler: (session: NexoSession | null) => void): () => void {
+  onAuthChange(handler: (session: ChalybSession | null) => void): () => void {
     const { data } = supabase.auth.onAuthStateChange(async (_event, sess) => {
       if (!sess?.user) {
         handler(null);
@@ -144,7 +144,7 @@ export class SupabaseBackend implements BackendClient {
   async listPlatformConnections(
     _userId: string,
   ): Promise<PlatformConnection[]> {
-    // TODO(phase-1): real table on the Supabase side (`engine_nexoobs_connections`?).
+    // TODO(phase-1): real table on the Supabase side (`engine_chalybobs_connections`?).
     return [];
   }
 

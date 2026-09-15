@@ -31,8 +31,8 @@ const SCOPES = [
 ].join(" ");
 
 function readEnv(): { clientId: string; clientSecret: string } | null {
-  const clientId = process.env.NEXOOBS_KICK_CLIENT_ID;
-  const clientSecret = process.env.NEXOOBS_KICK_CLIENT_SECRET;
+  const clientId = process.env.CHALYBOBS_KICK_CLIENT_ID;
+  const clientSecret = process.env.CHALYBOBS_KICK_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };
 }

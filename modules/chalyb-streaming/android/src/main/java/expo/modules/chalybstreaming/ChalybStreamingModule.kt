@@ -1,10 +1,10 @@
-package expo.modules.nexostreaming
+package expo.modules.chalybstreaming
 
 import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
-private const val TAG = "NexoStreaming"
+private const val TAG = "ChalybStreaming"
 
 /**
  * RTMP broadcaster module — Phase 1.A scaffold.
@@ -22,11 +22,11 @@ private const val TAG = "NexoStreaming"
  *   - Forward connect/connected/connectionFailed callbacks to onStatus.
  *   - Tick a stats job that posts bitrate/fps/dropped via onStats.
  */
-class NexoStreamingModule : Module() {
+class ChalybStreamingModule : Module() {
     @Volatile private var started: Boolean = false
 
     override fun definition() = ModuleDefinition {
-        Name("NexoStreaming")
+        Name("ChalybStreaming")
         Events("onStatus", "onStats", "onError")
 
         AsyncFunction("isReady") {

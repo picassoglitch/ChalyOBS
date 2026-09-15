@@ -3,8 +3,8 @@ import { readRelaySecret } from "./env";
 
 /**
  * Constant-time bearer check for the internal live webhooks the relay
- * (nexoclip-live MediaMTX hooks) calls. Returns true if the presented
- * Authorization header matches NEXOOBS_RELAY_SECRET.
+ * (chalybclip-live MediaMTX hooks) calls. Returns true if the presented
+ * Authorization header matches CHALYBOBS_RELAY_SECRET.
  */
 export function checkRelayBearer(authorization: string | null): boolean {
   const expected = readRelaySecret();

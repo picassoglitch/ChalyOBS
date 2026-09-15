@@ -38,13 +38,13 @@ export interface BroadcastError {
   code?: string;
 }
 
-export type NexoStreamingEvents = {
+export type ChalybStreamingEvents = {
   onStatus: (info: { status: BroadcastStatus }) => void;
   onStats: (info: BroadcastStats) => void;
   onError: (info: BroadcastError) => void;
 };
 
-declare class NexoStreamingModuleType extends NativeModule<NexoStreamingEvents> {
+declare class ChalybStreamingModuleType extends NativeModule<ChalybStreamingEvents> {
   /** Returns true once the native module finished loading and Camera2 + the
    *  RTMP publisher are ready to accept a start() call. */
   isReady(): Promise<boolean>;
@@ -54,8 +54,8 @@ declare class NexoStreamingModuleType extends NativeModule<NexoStreamingEvents> 
   setBitrate(bitrateKbps: number): Promise<void>;
 }
 
-const NexoStreaming = requireNativeModule<NexoStreamingModuleType>(
-  "NexoStreaming",
+const ChalybStreaming = requireNativeModule<ChalybStreamingModuleType>(
+  "ChalybStreaming",
 );
 
-export default NexoStreaming;
+export default ChalybStreaming;

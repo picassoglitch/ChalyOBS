@@ -1,7 +1,7 @@
 /**
  * Single source of truth for "does this tier unlock full-access features?"
  *
- * Nexo-AI's documented schema has four tiers (FREE | PRO | PARTNER |
+ * Chalyb's documented schema has four tiers (FREE | PRO | PARTNER |
  * ALL_ACCESS — see src/backend/types.ts), but production SSO tokens also mint
  * "vip" as the top/full-access tier. ALL_ACCESS, PARTNER and VIP all grant
  * full access: PARTNER is a comped/relationship tier and VIP is the live

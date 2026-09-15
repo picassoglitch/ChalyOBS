@@ -109,7 +109,7 @@ export function DashboardClient({
         connected?: string | null;
         connectError?: string | null;
       };
-      if (d?.source !== "nexoobs-oauth") return;
+      if (d?.source !== "chalybobs-oauth") return;
       awaitingConnect.current = false;
       setNotice(
         d.connected
@@ -142,7 +142,7 @@ export function DashboardClient({
     awaitingConnect.current = true;
     const popup = window.open(
       path,
-      "nexoobs_connect",
+      "chalybobs_connect",
       "popup=yes,width=520,height=780",
     );
     if (!popup) {
@@ -194,8 +194,8 @@ export function DashboardClient({
         isFullAccess={isFullAccess}
         upgradeUrl={upgradeUrl}
         onToggleClips={() => {
-          // On/off switch for the NexoClip connection. When ON, NexoOBS
-          // forwards each stream's lifecycle to NexoClip and clips flow.
+          // On/off switch for the ChalybClip connection. When ON, ChalybOBS
+          // forwards each stream's lifecycle to ChalybClip and clips flow.
           // No navigation — just toggles the connection state.
           const next = !clipsEnabled;
           setClipsEnabled(next);

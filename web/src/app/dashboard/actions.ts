@@ -36,7 +36,7 @@ export async function toggleLiveAction(value: boolean): Promise<void> {
 }
 
 export async function setClipsEnabledAction(value: boolean): Promise<void> {
-  // Turning the NexoClip connection ON is a full-access-only action —
+  // Turning the ChalybClip connection ON is a full-access-only action —
   // enforce server-side, not just by hiding the switch.
   const session = await getServerSession();
   if (!session) throw new Error("unauthorized");

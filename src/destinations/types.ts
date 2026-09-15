@@ -32,9 +32,9 @@ export interface PlatformMeta {
   displayName: string;
   ingestHint: string;
   accent: string;
-  /** Whether NexoOBS reads inbound chat from this platform today. */
+  /** Whether ChalybOBS reads inbound chat from this platform today. */
   supportsChat: boolean;
-  /** Whether NexoOBS broadcasts via RTMP/SRT to this platform today. */
+  /** Whether ChalybOBS broadcasts via RTMP/SRT to this platform today. */
   supportsBroadcast: boolean;
   /** One-line status note shown on the destinations row. */
   phaseNote: string;

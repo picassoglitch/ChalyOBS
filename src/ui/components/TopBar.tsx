@@ -8,7 +8,7 @@ interface Props {
   subtitle?: string;
   /** Right-edge settings tap; rendered as a ⚙ icon button. Hide by omitting. */
   onSettings?: () => void;
-  /** Single-letter glyph in the gradient square. Defaults to N (Nexo). */
+  /** Single-letter glyph in the gradient square. Defaults to N (Chalyb). */
   glyph?: string;
 }
 

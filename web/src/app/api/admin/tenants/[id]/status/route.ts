@@ -1,18 +1,18 @@
 /**
  * POST /api/admin/tenants/:id/status   { status: 'active' | 'paused' | 'cancelled' }
  *
- * Pause / resume / cancel a tenant remotely. Called by Nexo-AI when a user's
- * tier changes (PRO → free, etc.). Auth: shared bearer NEXOOBS_ADMIN_TOKEN.
+ * Pause / resume / cancel a tenant remotely. Called by Chalyb when a user's
+ * tier changes (PRO → free, etc.). Auth: shared bearer CHALYBOBS_ADMIN_TOKEN.
  *
- * Phase 0 stub: no DB, no enforcement. Returns 204 so Nexo-AI's
- * engine_subscriptions reconciliation passes. When NexoOBS has destinations
+ * Phase 0 stub: no DB, no enforcement. Returns 204 so Chalyb's
+ * engine_subscriptions reconciliation passes. When ChalybOBS has destinations
  * persisted, this becomes a real "stop streaming + freeze OAuth tokens"
  * mutation on the tenant row.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { checkAdminBearer } from "@/lib/admin-auth";
-import { readNexoEnv } from "@/lib/env";
+import { readChalybEnv } from "@/lib/env";
 
 const VALID_STATUSES = new Set(["active", "paused", "cancelled"]);
 
@@ -24,7 +24,7 @@ export async function POST(
   request: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const env = readNexoEnv();
+  const env = readChalybEnv();
   const authErr = checkAdminBearer(
     request.headers.get("authorization"),
     env?.adminToken,

@@ -1,17 +1,17 @@
 /**
  * POST /api/admin/tenants
  *
- * Idempotent tenant provisioning called by Nexo-AI's `nexoobs.ts` integration
- * (mirror of how it calls NexoClip). Auth: shared bearer
- * NEXOOBS_ADMIN_TOKEN.
+ * Idempotent tenant provisioning called by Chalyb's `chalybobs.ts` integration
+ * (mirror of how it calls ChalybClip). Auth: shared bearer
+ * CHALYBOBS_ADMIN_TOKEN.
  *
  * Phase 0: no DB. We return a deterministic `tenant_id` (= external_user_id
- * from Nexo-AI, which is its supabase user_id) and a deterministic
+ * from Chalyb, which is its supabase user_id) and a deterministic
  * `api_token` (HMAC of user_id with our session secret). This is enough for
- * Nexo-AI's engine_subscriptions row to land — every re-call returns the
+ * Chalyb's engine_subscriptions row to land — every re-call returns the
  * same pair, so the 409-vs-201 behavior collapses to a single 200.
  *
- * When NexoOBS gets a real DB (Postgres on Railway, alongside destinations
+ * When ChalybOBS gets a real DB (Postgres on Railway, alongside destinations
  * + OAuth tokens), swap the stub block for actual upsert + first-time vs
  * duplicate detection.
  */
@@ -19,7 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAdminBearer } from "@/lib/admin-auth";
 import { b64urlEncode } from "@/lib/b64url";
-import { readNexoEnv } from "@/lib/env";
+import { readChalybEnv } from "@/lib/env";
 
 interface ProvisionRequest {
   external_user_id?: string;
@@ -32,13 +32,13 @@ interface ProvisionResponse {
   tenant_id: string;
   api_token: string;
   /** Set to "duplicate" on the second-onward call. Phase 0 stub always
-   *  computes the same pair so we omit the field — Nexo-AI treats absence
+   *  computes the same pair so we omit the field — Chalyb treats absence
    *  as "new" but doesn't reject either way. */
   error?: string;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const env = readNexoEnv();
+  const env = readChalybEnv();
   const authErr = checkAdminBearer(
     request.headers.get("authorization"),
     env?.adminToken,
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 /** Derive a stable api_token from the tenant_id without storing it.
- *  Deterministic so re-provisioning returns the same value — Nexo-AI's
+ *  Deterministic so re-provisioning returns the same value — Chalyb's
  *  engine_subscriptions row stays consistent across redeploys. */
 async function deriveApiToken(
   tenantId: string,

@@ -15,8 +15,8 @@ import {
   emptyDestination,
 } from "./types";
 
-const NON_SECRET_KEY = "nexo.destinations.v1";
-const SECRET_KEY_PREFIX = "nexo.destinations.secret.v1.";
+const NON_SECRET_KEY = "chalyb.destinations.v1";
+const SECRET_KEY_PREFIX = "chalyb.destinations.secret.v1.";
 
 /**
  * Phase 0 storage strategy:

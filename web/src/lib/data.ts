@@ -14,9 +14,9 @@ import {
  * session cookie) and scopes all queries to it — the service-role client
  * bypasses RLS, so this code is the tenant boundary.
  *
- * Tables (see nexo-ai migration 0023):
- *   nexoobs_sessions      1 row per tenant — title, flags, ingest stream key
- *   nexoobs_destinations  N rows per tenant — one per connected platform
+ * Tables (see chalyb migration 0023):
+ *   chalybobs_sessions      1 row per tenant — title, flags, ingest stream key
+ *   chalybobs_destinations  N rows per tenant — one per connected platform
  */
 
 export interface TenantSession {
@@ -38,7 +38,7 @@ function freshStreamKey(): string {
   const hex = Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-  return `nexo_live_${hex}`;
+  return `chalyb_live_${hex}`;
 }
 
 /** Load the tenant's session row, creating a default one (with a freshly
@@ -48,7 +48,7 @@ export async function getOrCreateSession(
 ): Promise<TenantSession> {
   const db = getSupabaseAdmin();
   const { data } = await db
-    .from("nexoobs_sessions")
+    .from("chalybobs_sessions")
     .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -72,8 +72,8 @@ export async function getOrCreateSession(
     broadcastMeta: normalizeBroadcastMeta(null, DEFAULT_TITLE),
   };
   // record_enabled is omitted on insert — the column keeps its DB default
-  // (true). Recording isn't a user-facing toggle anymore (NexoClip drives it).
-  await db.from("nexoobs_sessions").insert({
+  // (true). Recording isn't a user-facing toggle anymore (ChalybClip drives it).
+  await db.from("chalybobs_sessions").insert({
     tenant_id: tenantId,
     title: fresh.title,
     is_live: fresh.isLive,
@@ -84,13 +84,13 @@ export async function getOrCreateSession(
   return fresh;
 }
 
-/** Read-only: is the NexoClip connection on for this tenant? Source of truth
- *  for the bidirectional switch (NexoOBS header ↔ NexoClip Live page) and the
+/** Read-only: is the ChalybClip connection on for this tenant? Source of truth
+ *  for the bidirectional switch (ChalybOBS header ↔ ChalybClip Live page) and the
  *  started/ended forwarding gate. */
 export async function getClipsEnabled(tenantId: string): Promise<boolean> {
   const db = getSupabaseAdmin();
   const { data } = await db
-    .from("nexoobs_sessions")
+    .from("chalybobs_sessions")
     .select("clips_enabled")
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -98,7 +98,7 @@ export async function getClipsEnabled(tenantId: string): Promise<boolean> {
 }
 
 /** Set the connection flag, creating the session row if the tenant hasn't
- *  opened NexoOBS yet (so the switch works from the NexoClip side too). */
+ *  opened ChalybOBS yet (so the switch works from the ChalybClip side too). */
 export async function setClipsEnabled(
   tenantId: string,
   enabled: boolean,
@@ -112,7 +112,7 @@ export async function setClipsEnabled(
 export async function getStreamKey(tenantId: string): Promise<string | null> {
   const db = getSupabaseAdmin();
   const { data } = await db
-    .from("nexoobs_sessions")
+    .from("chalybobs_sessions")
     .select("stream_key")
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -130,7 +130,7 @@ export async function updateSession(
   if (patch.clipsEnabled !== undefined) row.clips_enabled = patch.clipsEnabled;
   if (patch.streamKey !== undefined) row.stream_key = patch.streamKey;
   if (patch.broadcastMeta !== undefined) row.broadcast_meta = patch.broadcastMeta;
-  await db.from("nexoobs_sessions").update(row).eq("tenant_id", tenantId);
+  await db.from("chalybobs_sessions").update(row).eq("tenant_id", tenantId);
 }
 
 export async function regenerateStreamKey(tenantId: string): Promise<string> {
@@ -194,7 +194,7 @@ export async function getDestinations(
 ): Promise<(DestinationConfig & { id: string })[]> {
   const db = getSupabaseAdmin();
   const { data, error } = await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .select(
       "id, platform_id, channel_handle, stream_title, ingest_url, stream_key, oauth_refresh_token, enabled, status_kind, status_platform_name",
     )
@@ -207,7 +207,7 @@ export async function getDestinations(
   // set so the channels panel keeps working (rows just read as not
   // OAuth-connected). Remove once 0025 is applied everywhere.
   const legacy = await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .select(
       "id, platform_id, channel_handle, stream_title, ingest_url, stream_key, enabled, status_kind, status_platform_name",
     )
@@ -227,7 +227,7 @@ export async function addDestination(
   // (Twitch/YouTube/Kick/Facebook) are pre-filled; the user only adds the
   // stream key. custom_rtmp / custom_srt start empty for manual entry.
   const ingestUrl = PLATFORM_META[platformId]?.ingestHint ?? "";
-  await db.from("nexoobs_destinations").insert({
+  await db.from("chalybobs_destinations").insert({
     tenant_id: tenantId,
     platform_id: platformId,
     ingest_url: ingestUrl,
@@ -256,7 +256,7 @@ export async function updateDestination(
   if (patch.ingestUrl !== undefined) row.ingest_url = patch.ingestUrl;
   if (patch.streamKey !== undefined) row.stream_key = patch.streamKey;
   await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .update(row)
     .eq("tenant_id", tenantId)
     .eq("id", id);
@@ -277,14 +277,14 @@ export async function toggleDestination(
 ): Promise<void> {
   const db = getSupabaseAdmin();
   const { data } = await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .select("enabled")
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
   if (!data) return;
   await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .update({ enabled: !data.enabled, updated_at: new Date().toISOString() })
     .eq("tenant_id", tenantId)
     .eq("id", id);
@@ -310,11 +310,11 @@ export async function publishBroadcastMeta(
   };
   const now = new Date().toISOString();
   await db
-    .from("nexoobs_sessions")
+    .from("chalybobs_sessions")
     .update({ title, broadcast_meta: clean, updated_at: now })
     .eq("tenant_id", tenantId);
   await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .update({ stream_title: title, updated_at: now })
     .eq("tenant_id", tenantId);
 }
@@ -358,7 +358,7 @@ export async function connectOAuthDestination(
     updated_at: new Date().toISOString(),
   };
   const { data } = await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .select("id")
     .eq("tenant_id", tenantId)
     .eq("platform_id", platformId)
@@ -366,12 +366,12 @@ export async function connectOAuthDestination(
   const existing = data?.[0];
   if (existing) {
     await db
-      .from("nexoobs_destinations")
+      .from("chalybobs_destinations")
       .update(row)
       .eq("tenant_id", tenantId)
       .eq("id", existing.id as string);
   } else {
-    await db.from("nexoobs_destinations").insert({
+    await db.from("chalybobs_destinations").insert({
       tenant_id: tenantId,
       platform_id: platformId,
       enabled: true,
@@ -395,7 +395,7 @@ export async function getOAuthConnections(
 ): Promise<OAuthTokenRow[]> {
   const db = getSupabaseAdmin();
   const { data } = await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .select("id, platform_id, oauth_token, oauth_refresh_token, oauth_expires_at")
     .eq("tenant_id", tenantId)
     .neq("oauth_refresh_token", "");
@@ -416,7 +416,7 @@ export async function saveOAuthTokens(
 ): Promise<void> {
   const db = getSupabaseAdmin();
   await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .update({
       oauth_token: tokens.accessToken,
       oauth_refresh_token: tokens.refreshToken,
@@ -437,7 +437,7 @@ export async function markDestinationStatus(
 ): Promise<void> {
   const db = getSupabaseAdmin();
   await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .update({ status_kind: kind, updated_at: new Date().toISOString() })
     .eq("tenant_id", tenantId)
     .eq("id", id);
@@ -449,13 +449,13 @@ export async function removeDestination(
 ): Promise<void> {
   const db = getSupabaseAdmin();
   await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .delete()
     .eq("tenant_id", tenantId)
     .eq("id", id);
 }
 
-// ── Relay integration (called by the nexoclip-live MediaMTX hooks) ──────────
+// ── Relay integration (called by the chalybclip-live MediaMTX hooks) ──────────
 
 /** Resolve a publish stream key → tenant. Used by /api/internal/live/authorize
  *  so the relay knows whether to accept the push + whose destinations to fan
@@ -465,7 +465,7 @@ export async function getTenantByStreamKey(
 ): Promise<string | null> {
   const db = getSupabaseAdmin();
   const { data } = await db
-    .from("nexoobs_sessions")
+    .from("chalybobs_sessions")
     .select("tenant_id")
     .eq("stream_key", streamKey)
     .maybeSingle();
@@ -507,7 +507,7 @@ export async function getFanoutDestinations(
 ): Promise<{ platform: string; push_url: string }[]> {
   const db = getSupabaseAdmin();
   const { data } = await db
-    .from("nexoobs_destinations")
+    .from("chalybobs_destinations")
     .select("platform_id, ingest_url, stream_key, enabled")
     .eq("tenant_id", tenantId)
     .eq("enabled", true);

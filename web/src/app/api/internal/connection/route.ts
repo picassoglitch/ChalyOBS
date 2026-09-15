@@ -1,13 +1,13 @@
 /**
- * NexoClip connection state — the shared, bidirectional switch.
+ * ChalybClip connection state — the shared, bidirectional switch.
  *
- *   GET  /api/internal/connection?tenant=<nexo_ai_user_id>  → { enabled }
+ *   GET  /api/internal/connection?tenant=<chalyb_user_id>  → { enabled }
  *   POST /api/internal/connection  { tenant, enabled }      → { enabled }
  *
- * Source of truth is NexoOBS's nexoobs_sessions.clips_enabled. The NexoOBS
- * header switch toggles it directly; NexoClip's Live-page switch reads/writes
+ * Source of truth is ChalybOBS's chalybobs_sessions.clips_enabled. The ChalybOBS
+ * header switch toggles it directly; ChalybClip's Live-page switch reads/writes
  * it through this endpoint — so flipping it on either side updates the same
- * connection. Bearer-authed with NEXOOBS_RELAY_SECRET (shared internal trust).
+ * connection. Bearer-authed with CHALYBOBS_RELAY_SECRET (shared internal trust).
  *
  * Full-access gating is enforced by each app's UI before calling; this
  * internal endpoint trusts the bearer.

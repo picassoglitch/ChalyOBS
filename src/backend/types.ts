@@ -1,6 +1,6 @@
 /**
- * Types mirror the Nexo-AI World schema (Supabase `profiles` table) so this
- * mobile engine reads the same rows the Next.js shell + NexoClip do.
+ * Types mirror the Chalyb schema (Supabase `profiles` table) so this
+ * mobile engine reads the same rows the Next.js shell + ChalybClip do.
  *
  *   public.profiles
  *     id uuid primary key references auth.users(id) on delete cascade
@@ -11,10 +11,10 @@
  *     role text       — UserRole (see below)
  *     tier text       — SubscriptionTier (see below)
  *     org_id uuid
- *     selected_engine_id text   — slug ('nexoclip', 'nexoobs', …)
+ *     selected_engine_id text   — slug ('chalybclip', 'chalybobs', …)
  *
- * The "Role" the user picks INSIDE NexoStreamOBS (Streamer vs Camera Operator) is
- * stored locally only — it's session-scoped, not a Nexo platform concept.
+ * The "Role" the user picks INSIDE ChalybOBS (Streamer vs Camera Operator) is
+ * stored locally only — it's session-scoped, not a Chalyb platform concept.
  */
 
 export type UserRole =
@@ -28,7 +28,7 @@ export type UserRole =
 export type SubscriptionTier = "FREE" | "PRO" | "PARTNER" | "ALL_ACCESS";
 
 /** Session info read from Supabase auth + the joined `profiles` row. */
-export interface NexoSession {
+export interface ChalybSession {
   /** Supabase auth user id (= profiles.id). */
   userId: string;
   email: string | null;
@@ -42,7 +42,7 @@ export interface NexoSession {
   selectedEngineId: string | null;
 }
 
-/** Local-only choice: which mode of NexoStreamOBS are you running right now. */
+/** Local-only choice: which mode of ChalybOBS are you running right now. */
 export type OperatorRole = "streamer" | "operator";
 
 export type PlatformId =

@@ -3,14 +3,14 @@
  *
  * Relay tells us the publisher disconnected. We recover the tenant from the
  * stream_id (<tenant>__<random>), flip the session back to offline, and —
- * when the NexoClip connection is on — forward the end to NexoClip, which
+ * when the ChalybClip connection is on — forward the end to ChalybClip, which
  * runs its auto-clip pipeline on the recording. Bearer-authed.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { checkRelayBearer } from "@/lib/relay-auth";
 import { getClipsEnabled, tenantFromStreamId, updateSession } from "@/lib/data";
-import { nexoclipEnded } from "@/lib/nexoclip";
+import { chalybclipEnded } from "@/lib/chalybclip";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!checkRelayBearer(request.headers.get("authorization"))) {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   await updateSession(tenantId, { isLive: false });
 
   if (await getClipsEnabled(tenantId)) {
-    await nexoclipEnded({
+    await chalybclipEnded({
       streamId,
       tenantId,
       durationS: typeof body.duration_s === "number" ? body.duration_s : undefined,

@@ -1,22 +1,22 @@
 {
   "expo": {
-    "name": "NexoStreamOBS",
-    "slug": "nexo-ai-world",
+    "name": "ChalybOBS",
+    "slug": "chalybobs",
     "version": "0.1.0",
-    "scheme": "nexoaiworld",
+    "scheme": "chalybobs",
     "orientation": "default",
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nexoai.world",
+      "bundleIdentifier": "com.chalyb.obs",
       "infoPlist": {
-        "NSCameraUsageDescription": "NexoStreamOBS uses the camera to preview and stream live video.",
-        "NSMicrophoneUsageDescription": "NexoStreamOBS captures microphone audio for your live stream.",
-        "NSLocalNetworkUsageDescription": "NexoStreamOBS connects to your local broadcast/ingest servers on your LAN."
+        "NSCameraUsageDescription": "ChalybOBS uses the camera to preview and stream live video.",
+        "NSMicrophoneUsageDescription": "ChalybOBS captures microphone audio for your live stream.",
+        "NSLocalNetworkUsageDescription": "ChalybOBS connects to your local broadcast/ingest servers on your LAN."
       }
     },
     "android": {
-      "package": "com.nexoai.world",
+      "package": "com.chalyb.obs",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -36,8 +36,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow NexoStreamOBS to access the camera",
-          "microphonePermission": "Allow NexoStreamOBS to access the microphone",
+          "cameraPermission": "Allow ChalybOBS to access the camera",
+          "microphonePermission": "Allow ChalybOBS to access the microphone",
           "recordAudioAndroid": true
         }
       ],
@@ -45,7 +45,7 @@
       "expo-dev-client",
       "expo-secure-store",
       "expo-web-browser",
-      "./modules/nexo-uvc-camera/app.plugin.js"
+      "./modules/chalyb-uvc-camera/app.plugin.js"
     ],
     "experiments": {
       "typedRoutes": true

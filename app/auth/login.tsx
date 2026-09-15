@@ -15,7 +15,7 @@ import { t } from "@/i18n";
 import { useSession } from "@/store/session.store";
 import { BridgeCard, BridgeColors, Mono, TopBar } from "@/ui";
 
-const SIGNUP_URL = "https://nexo-ai.world/sign-up";
+const SIGNUP_URL = "https://chalyb.com/sign-up";
 
 export default function LoginScreen() {
   const { signIn, signInWithGoogle } = useSession();

@@ -9,23 +9,23 @@ import {
   useState,
 } from "react";
 import { backend } from "@/backend";
-import type { NexoSession, OperatorRole } from "@/backend";
+import type { ChalybSession, OperatorRole } from "@/backend";
 import { signInWithGoogle as googleSignIn } from "@/lib/auth/google";
 import { kv } from "@/store/kv";
 
-const ROLE_KEY = "nexo.activeRole.v1";
+const ROLE_KEY = "chalyb.activeRole.v1";
 
 export type SessionPhase =
   | "loading" // hydrating Supabase session
   | "loggedOut" // no Supabase user
-  | "needsRole" // logged in, no NexoOBS role picked yet
+  | "needsRole" // logged in, no ChalybOBS role picked yet
   | "ready"; // role picked
 
 export interface SessionState {
   phase: SessionPhase;
-  /** Joined Supabase user + Nexo profile row. */
-  session: NexoSession | null;
-  /** Local-only — which mode of NexoOBS the user is running this session. */
+  /** Joined Supabase user + Chalyb profile row. */
+  session: ChalybSession | null;
+  /** Local-only — which mode of ChalybOBS the user is running this session. */
   role: OperatorRole | null;
   error: string | null;
 }
@@ -63,7 +63,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const computePhase = useCallback(
-    (session: NexoSession | null, role: OperatorRole | null): SessionPhase => {
+    (session: ChalybSession | null, role: OperatorRole | null): SessionPhase => {
       if (!session) return "loggedOut";
       if (!role) return "needsRole";
       return "ready";

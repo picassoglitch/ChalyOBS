@@ -211,7 +211,7 @@ export function StreamPreview({ hlsUrl, offlineContent }: Props) {
                 {state === "unconfigured" && (
                   <p className="text-[10px] text-text-tertiary mt-3 text-center">
                     Preview no disponible — el relay aún no expone HLS (
-                    <code className="font-mono">NEXOOBS_RELAY_INTERNAL_HLS</code>
+                    <code className="font-mono">CHALYBOBS_RELAY_INTERNAL_HLS</code>
                     ).
                   </p>
                 )}
@@ -229,7 +229,7 @@ export function StreamPreview({ hlsUrl, offlineContent }: Props) {
                   </p>
                   <p className="text-[11px] text-text-tertiary mt-1 max-w-xs">
                     El relay aún no expone HLS. Configura{" "}
-                    <code className="font-mono">NEXOOBS_RELAY_INTERNAL_HLS</code>.
+                    <code className="font-mono">CHALYBOBS_RELAY_INTERNAL_HLS</code>.
                   </p>
                 </>
               ) : (

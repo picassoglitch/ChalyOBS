@@ -1,7 +1,7 @@
 /**
  * Constant-time bearer-token check for admin endpoints. The bearer is
- * `NEXOOBS_ADMIN_TOKEN`, shared with Nexo-AI (it stores the same value as
- * `NEXOOBS_ADMIN_TOKEN` on its side).
+ * `CHALYBOBS_ADMIN_TOKEN`, shared with Chalyb (it stores the same value as
+ * `CHALYBOBS_ADMIN_TOKEN` on its side).
  *
  * Returns `null` on success, or a NextResponse with the right status if
  * the check fails so the caller can `return result ?? actual();`.
@@ -15,7 +15,7 @@ export function checkAdminBearer(
 ): NextResponse | null {
   if (!expectedToken) {
     return NextResponse.json(
-      { error: "nexoobs_admin_token_not_configured" },
+      { error: "chalybobs_admin_token_not_configured" },
       { status: 503 },
     );
   }

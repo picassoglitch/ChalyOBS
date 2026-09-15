@@ -1,4 +1,4 @@
--- NexoOBS — OAuth auto-connect (Restream-style) for platform destinations
+-- ChalybOBS — OAuth auto-connect (Restream-style) for platform destinations
 --
 -- Connecting a platform via OAuth (Kick first; Twitch/YouTube follow the same
 -- shape) replaces manual ingest-URL + stream-key entry: the callback fetches
@@ -11,10 +11,10 @@
 --   oauth_scopes         space-separated scopes actually granted, so we can
 --                        detect connections made before a scope was added
 --
--- Apply in the schema repo (nexo-ai, alongside 0023/0024) BEFORE deploying
--- the NexoOBS web code that reads these columns.
+-- Apply in the schema repo (chalyb, alongside 0023/0024) BEFORE deploying
+-- the ChalybOBS web code that reads these columns.
 
-alter table public.nexoobs_destinations
+alter table public.chalybobs_destinations
   add column if not exists oauth_refresh_token text not null default '',
   add column if not exists oauth_expires_at timestamptz,
   add column if not exists oauth_scopes text not null default '';

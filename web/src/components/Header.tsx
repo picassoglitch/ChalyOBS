@@ -7,13 +7,13 @@ import { HomeIcon, ClipsIcon, ChevronDownIcon } from "./icons";
 interface HeaderProps {
   title: string;
   isLive: boolean;
-  /** NexoClip connection ON/OFF — when on, streams flow to NexoClip for clips. */
+  /** ChalybClip connection ON/OFF — when on, streams flow to ChalybClip for clips. */
   clipsEnabled?: boolean;
   /** Whether the connection switch can be toggled (full access only). */
   clipsAvailable?: boolean;
   /** Full-access tenants don't see the Upgrade button. */
   isFullAccess?: boolean;
-  /** Where Upgrade sends the user (Nexo-AI World). */
+  /** Where Upgrade sends the user (Chalyb). */
   upgradeUrl?: string;
   onTitleChange: (next: string) => void;
   onToggleClips: () => void;
@@ -25,7 +25,7 @@ export function Header({
   clipsEnabled,
   clipsAvailable = true,
   isFullAccess = false,
-  upgradeUrl = "https://nexo-ai.world",
+  upgradeUrl = "https://chalyb.com",
   onTitleChange,
   onToggleClips,
 }: HeaderProps) {
@@ -88,15 +88,15 @@ export function Header({
         </a>
       )}
 
-      {/* NexoClip connection switch — when ON, streams flow to NexoClip and
+      {/* ChalybClip connection switch — when ON, streams flow to ChalybClip and
           clips are generated. Only full-access users can flip it on. */}
       <div
         className="flex items-center gap-2 px-2"
         title={
           clipsAvailable
             ? clipsEnabled
-              ? "Conectado a NexoClip — los streams generan clips"
-              : "Conectar con NexoClip para generar clips"
+              ? "Conectado a ChalybClip — los streams generan clips"
+              : "Conectar con ChalybClip para generar clips"
             : "Requiere Full Access"
         }
       >
@@ -119,7 +119,7 @@ export function Header({
           />
         </button>
         <span className="text-xs font-medium text-text-secondary hidden sm:inline">
-          NexoClip
+          ChalybClip
         </span>
       </div>
 

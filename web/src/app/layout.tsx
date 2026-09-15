@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NexoOBS — Multistream + Clips",
+  title: "ChalybOBS — Multistream + Clips",
   description:
-    "Pareja tu cámara con NexoOBS para multistream a Kick / Twitch / YouTube / TikTok / Restream con chat unificado y NexoClip.",
+    "Pareja tu cámara con ChalybOBS para multistream a Kick / Twitch / YouTube / TikTok / Restream con chat unificado y ChalybClip.",
 };
 
 export default function RootLayout({
