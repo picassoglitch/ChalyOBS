@@ -3,9 +3,9 @@ import { readChalybEnv } from "@/lib/env";
 import { SESSION_COOKIE_NAME, verifySession } from "@/lib/session";
 
 /**
- * Edge-runtime middleware. ChalybOBS is an agent of Chalyb — it only
+ * Edge-runtime middleware. ChalyOBS is an agent of Chalyb — it only
  * works for users signed in through Chalyb. Every protected route requires
- * a valid ChalybOBS session cookie (minted by /auth/sso after Chalyb SSO).
+ * a valid ChalyOBS session cookie (minted by /auth/sso after Chalyb SSO).
  *
  * FAIL CLOSED: no session, bad/expired cookie, OR missing server secrets all
  * redirect to /login (which bounces to Chalyb). There is no

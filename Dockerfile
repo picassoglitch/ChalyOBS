@@ -1,4 +1,4 @@
-# ChalybOBS engine — builds the Next.js app in web/ for Cloud Run.
+# ChalyOBS engine — builds the Next.js app in web/ for Cloud Run.
 # Build context is the repository root (see cloudbuild.yaml).
 
 FROM node:20-alpine AS deps

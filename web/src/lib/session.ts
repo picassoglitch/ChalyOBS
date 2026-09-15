@@ -1,5 +1,5 @@
 /**
- * ChalybOBS session cookie — independent of the SSO secret.
+ * ChalyOBS session cookie — independent of the SSO secret.
  *
  * Stateless: the cookie carries the verified user claims directly, signed
  * with CHALYBOBS_SESSION_SECRET. No DB lookup per request; revocation = wait

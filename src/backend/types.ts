@@ -1,6 +1,6 @@
 /**
  * Types mirror the Chalyb schema (Supabase `profiles` table) so this
- * mobile engine reads the same rows the Next.js shell + ChalybClip do.
+ * mobile engine reads the same rows the Next.js shell + ChalyClip do.
  *
  *   public.profiles
  *     id uuid primary key references auth.users(id) on delete cascade
@@ -13,7 +13,7 @@
  *     org_id uuid
  *     selected_engine_id text   — slug ('chalybclip', 'chalybobs', …)
  *
- * The "Role" the user picks INSIDE ChalybOBS (Streamer vs Camera Operator) is
+ * The "Role" the user picks INSIDE ChalyOBS (Streamer vs Camera Operator) is
  * stored locally only — it's session-scoped, not a Chalyb platform concept.
  */
 
@@ -42,7 +42,7 @@ export interface ChalybSession {
   selectedEngineId: string | null;
 }
 
-/** Local-only choice: which mode of ChalybOBS are you running right now. */
+/** Local-only choice: which mode of ChalyOBS are you running right now. */
 export type OperatorRole = "streamer" | "operator";
 
 export type PlatformId =

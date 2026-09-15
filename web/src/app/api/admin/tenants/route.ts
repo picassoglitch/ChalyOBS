@@ -2,7 +2,7 @@
  * POST /api/admin/tenants
  *
  * Idempotent tenant provisioning called by Chalyb's `chalybobs.ts` integration
- * (mirror of how it calls ChalybClip). Auth: shared bearer
+ * (mirror of how it calls ChalyClip). Auth: shared bearer
  * CHALYBOBS_ADMIN_TOKEN.
  *
  * Phase 0: no DB. We return a deterministic `tenant_id` (= external_user_id
@@ -11,7 +11,7 @@
  * Chalyb's engine_subscriptions row to land — every re-call returns the
  * same pair, so the 409-vs-201 behavior collapses to a single 200.
  *
- * When ChalybOBS gets a real DB (Postgres on Railway, alongside destinations
+ * When ChalyOBS gets a real DB (Postgres on Railway, alongside destinations
  * + OAuth tokens), swap the stub block for actual upsert + first-time vs
  * duplicate detection.
  */

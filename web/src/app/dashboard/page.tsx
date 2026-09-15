@@ -58,10 +58,10 @@ export default async function DashboardPage({
   // Preview is available when the relay's private HLS address is set; the
   // player then pulls from the authenticated same-origin proxy.
   const previewEnabled = Boolean(process.env.CHALYBOBS_RELAY_INTERNAL_HLS);
-  // The ChalybClip connection switch is full-access only (ALL_ACCESS or
+  // The ChalyClip connection switch is full-access only (ALL_ACCESS or
   // PARTNER). Definition lives in @/lib/tier so the server-side gate matches.
   const isFullAccess = isFullAccessTier(session.tier);
-  // Upgrade lands on Chalyb (plans live there, not in ChalybOBS).
+  // Upgrade lands on Chalyb (plans live there, not in ChalyOBS).
   const upgradeUrl = (
     process.env.CHALYB_LOGIN_URL ?? "https://chalyb.com/login"
   ).replace(/\/login\/?$/, "");

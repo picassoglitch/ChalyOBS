@@ -17,7 +17,7 @@ import {
  * falls back to the stored one). There is no single "stream key" API either:
  * the equivalent is a REUSABLE liveStream resource, whose cdn.ingestionInfo
  * holds ingestionAddress (+ streamName as the key). We reuse the user's
- * existing RTMP stream or create one named "ChalybOBS".
+ * existing RTMP stream or create one named "ChalyOBS".
  *
  * Metadata (title/description/visibility) applies per-BROADCAST on YouTube,
  * not per-channel, so there is no pushMeta here — the composer's values are
@@ -130,7 +130,7 @@ async function fetchConnection(
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({
-        snippet: { title: "ChalybOBS" },
+        snippet: { title: "ChalyOBS" },
         cdn: {
           ingestionType: "rtmp",
           resolution: "variable",

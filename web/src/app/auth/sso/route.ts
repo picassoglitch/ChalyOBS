@@ -2,7 +2,7 @@
  * GET /auth/sso?token=<hmac-signed>
  *
  * Endpoint Chalyb redirects the browser to after the user clicks "Launch
- * ChalybOBS" from chalyb.com. We verify the HMAC signature against
+ * ChalyOBS" from chalyb.com. We verify the HMAC signature against
  * CHALYBOBS_SSO_SECRET, mint our own long-lived session cookie, and 303 to
  * /dashboard.
  *

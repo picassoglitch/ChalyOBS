@@ -72,7 +72,7 @@ export async function getOrCreateSession(
     broadcastMeta: normalizeBroadcastMeta(null, DEFAULT_TITLE),
   };
   // record_enabled is omitted on insert — the column keeps its DB default
-  // (true). Recording isn't a user-facing toggle anymore (ChalybClip drives it).
+  // (true). Recording isn't a user-facing toggle anymore (ChalyClip drives it).
   await db.from("chalybobs_sessions").insert({
     tenant_id: tenantId,
     title: fresh.title,
@@ -84,8 +84,8 @@ export async function getOrCreateSession(
   return fresh;
 }
 
-/** Read-only: is the ChalybClip connection on for this tenant? Source of truth
- *  for the bidirectional switch (ChalybOBS header ↔ ChalybClip Live page) and the
+/** Read-only: is the ChalyClip connection on for this tenant? Source of truth
+ *  for the bidirectional switch (ChalyOBS header ↔ ChalyClip Live page) and the
  *  started/ended forwarding gate. */
 export async function getClipsEnabled(tenantId: string): Promise<boolean> {
   const db = getSupabaseAdmin();
@@ -98,7 +98,7 @@ export async function getClipsEnabled(tenantId: string): Promise<boolean> {
 }
 
 /** Set the connection flag, creating the session row if the tenant hasn't
- *  opened ChalybOBS yet (so the switch works from the ChalybClip side too). */
+ *  opened ChalyOBS yet (so the switch works from the ChalyClip side too). */
 export async function setClipsEnabled(
   tenantId: string,
   enabled: boolean,

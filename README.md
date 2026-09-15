@@ -1,6 +1,6 @@
-# ChalybOBS
+# ChalyOBS
 
-Engine de transmisión móvil para Chalyb — pareja un DJI Osmo Pocket 3 con un teléfono para hacer multistreaming a Kick / Twitch / YouTube / TikTok / Restream con chat unificado y control de permisos. Vive junto a ChalybClip dentro del registry de engines de Chalyb.
+Engine de transmisión móvil para Chalyb — pareja un DJI Osmo Pocket 3 con un teléfono para hacer multistreaming a Kick / Twitch / YouTube / TikTok / Restream con chat unificado y control de permisos. Vive junto a ChalyClip dentro del registry de engines de Chalyb.
 
 Roles cooperativos:
 - **Camera Operator Mode** (Android): UVC preview of the Osmo, real-time chat overlay, stream-health display, optional stream-start permission.
@@ -48,7 +48,7 @@ Scan the QR with **Expo Go** on your iPhone or Samsung S22 Ultra. Edit any `.tsx
 
 ## Google OAuth setup (one-time, Supabase dashboard)
 
-ChalybOBS signs in via the Chalyb Supabase project. For the "Continuar con Google" button to bounce back to the app after sign-in, the runtime redirect URI must be in the project's redirect-URL allowlist.
+ChalyOBS signs in via the Chalyb Supabase project. For the "Continuar con Google" button to bounce back to the app after sign-in, the runtime redirect URI must be in the project's redirect-URL allowlist.
 
 1. Open https://supabase.com/dashboard/project/uqcbziwdgbnzehipzjxp/auth/url-configuration
 2. Under **Redirect URLs**, add (one per line, wildcards allowed):

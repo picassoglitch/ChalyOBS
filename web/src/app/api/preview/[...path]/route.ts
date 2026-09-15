@@ -9,7 +9,7 @@
  *   3. Proxy the request to  <internal>/live/<streamKey>/<...path>  and
  *      stream the bytes back.
  *
- * The browser only ever talks to ChalybOBS (same origin, no CORS), the stream
+ * The browser only ever talks to ChalyOBS (same origin, no CORS), the stream
  * key never appears in a browser URL, and a tenant can only ever reach
  * their OWN stream. The player requests /api/preview/index.m3u8; the
  * relative segment URLs in the manifest resolve back under /api/preview/.

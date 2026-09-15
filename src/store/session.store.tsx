@@ -18,14 +18,14 @@ const ROLE_KEY = "chalyb.activeRole.v1";
 export type SessionPhase =
   | "loading" // hydrating Supabase session
   | "loggedOut" // no Supabase user
-  | "needsRole" // logged in, no ChalybOBS role picked yet
+  | "needsRole" // logged in, no ChalyOBS role picked yet
   | "ready"; // role picked
 
 export interface SessionState {
   phase: SessionPhase;
   /** Joined Supabase user + Chalyb profile row. */
   session: ChalybSession | null;
-  /** Local-only — which mode of ChalybOBS the user is running this session. */
+  /** Local-only — which mode of ChalyOBS the user is running this session. */
   role: OperatorRole | null;
   error: string | null;
 }

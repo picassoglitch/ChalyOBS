@@ -97,7 +97,7 @@ function translateAuthError(message: string): string {
 
 /**
  * Talks to the Chalyb Supabase project. Profiles are read from
- * `public.profiles` — same row the Next.js shell + ChalybClip read.
+ * `public.profiles` — same row the Next.js shell + ChalyClip read.
  */
 export class SupabaseBackend implements BackendClient {
   async signInWithPassword(

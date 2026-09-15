@@ -14,7 +14,7 @@
 
 const HTML = `<!doctype html>
 <html>
-<head><meta charset="utf-8"><title>ChalybOBS</title></head>
+<head><meta charset="utf-8"><title>ChalyOBS</title></head>
 <body style="background:#0a0a0a;color:#888;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <p>Conexión completada — puedes cerrar esta ventana.</p>
 <script>

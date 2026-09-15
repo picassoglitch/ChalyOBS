@@ -1,7 +1,7 @@
 /**
  * Ingest endpoints shown in the encoder panel.
  *
- * The relay base is the address the encoder pushes to (the ChalybOBS relay
+ * The relay base is the address the encoder pushes to (the ChalyOBS relay
  * fans out to enabled destinations). It MUST be the raw reachable RTMP
  * endpoint — for a Railway service that's the TCP-proxy host:port
  * (e.g. rtmp://acela.proxy.rlwy.net:26151/live), NOT the HTTP custom

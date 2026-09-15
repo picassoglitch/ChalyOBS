@@ -55,7 +55,7 @@ export default function DiagnosticsScreen() {
   // Fall back to the new brand instead of leaving us showing a stale value if
   // Expo Go is still serving the cached manifest after an app.json rename.
   const appName =
-    (Constants.expoConfig?.name as string | undefined) ?? "ChalybOBS";
+    (Constants.expoConfig?.name as string | undefined) ?? "ChalyOBS";
   const oauthRedirect = Linking.createURL("auth/callback");
   const appVersion =
     (Constants.expoConfig?.version as string | undefined) ?? "0.0.0";

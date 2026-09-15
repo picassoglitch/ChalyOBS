@@ -4,7 +4,7 @@
  * Returns the current session's identity + resolved access level, read from
  * the verified chalybobs_session cookie. No secrets, no other tenants — just
  * "who am I and does the app think I'm full access". Handy for diagnosing the
- * ChalybClip switch being greyed out: it shows the exact `tier` value the SSO
+ * ChalyClip switch being greyed out: it shows the exact `tier` value the SSO
  * handoff delivered.
  */
 

@@ -2,8 +2,8 @@
  * POST /api/internal/live/started   { stream_id, tenant_id, recording_path }
  *
  * Relay tells us the push went live. We flip the tenant's session to live so
- * the dashboard badge reflects reality, and — when the ChalybClip connection
- * is on — forward the start to ChalybClip so it records the stream for
+ * the dashboard badge reflects reality, and — when the ChalyClip connection
+ * is on — forward the start to ChalyClip so it records the stream for
  * clipping. Bearer-authed.
  *
  * stream_id is unique per session (<tenant>__<random>); tenant_id is echoed
@@ -39,8 +39,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   await updateSession(tenantId, { isLive: true });
 
-  // Hand off to ChalybClip's pipeline when the connection is on. Forward the
-  // operator's broadcast title so ChalybClip shows the real stream name
+  // Hand off to ChalyClip's pipeline when the connection is on. Forward the
+  // operator's broadcast title so ChalyClip shows the real stream name
   // instead of an auto-generated tag. (getClipsEnabled stays the gate — its
   // null-default differs from getOrCreateSession's, so don't conflate them.)
   if (await getClipsEnabled(tenantId)) {

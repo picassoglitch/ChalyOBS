@@ -1,7 +1,7 @@
 {
   "name": "chalyb-uvc-camera",
   "version": "0.1.0",
-  "description": "USB UVC camera capture (Osmo Pocket 3 et al.) for ChalybOBS — Android-only Expo Module.",
+  "description": "USB UVC camera capture (Osmo Pocket 3 et al.) for ChalyOBS — Android-only Expo Module.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "private": true

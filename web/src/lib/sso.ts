@@ -1,5 +1,5 @@
 /**
- * SSO token verifier — TypeScript port of ChalybClip's
+ * SSO token verifier — TypeScript port of ChalyClip's
  * `chalybclip/integrations/chalyb/sso.py`. Wire-compatible byte for byte:
  *
  *   token = base64url(payload_json) + "." + base64url(HMAC-SHA256(payload_b64, secret))
@@ -42,7 +42,7 @@ export async function verifySsoToken(
   const { secret, nowSeconds, leewaySeconds = 0 } = options;
   if (!secret) {
     throw new SsoTokenError(
-      "CHALYBOBS_SSO_SECRET not configured on this ChalybOBS instance",
+      "CHALYBOBS_SSO_SECRET not configured on this ChalyOBS instance",
     );
   }
   if (!token) throw new SsoTokenError("empty token");

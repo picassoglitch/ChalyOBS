@@ -1,5 +1,5 @@
 /**
- * ChalybOBS env vars — Chalyb shared convention (CHALYB_*, CHALYBCLIP_*,
+ * ChalyOBS env vars — Chalyb shared convention (CHALYB_*, CHALYBCLIP_*,
  * CHALYBCRYPTO_*, CHALYBOBS_*). No NEXT_PUBLIC_ prefix anywhere: every read
  * happens on the server (SSO route, middleware, admin endpoints).
  *
@@ -16,9 +16,9 @@ export interface ChalybEnv {
   /** Bearer token Chalyb presents on POST /api/admin/* calls. */
   adminToken: string;
   /** Independent HMAC secret used to sign OUR session cookie. NOT shared
-   *  with Chalyb — only ChalybOBS mints + verifies its own session. */
+   *  with Chalyb — only ChalyOBS mints + verifies its own session. */
   sessionSecret: string;
-  /** Absolute public URL of this ChalybOBS deploy. Used to construct
+  /** Absolute public URL of this ChalyOBS deploy. Used to construct
    *  return_to on the login redirect. */
   publicUrl: string;
   /** Where to send unauthenticated visitors. Shared variable in Railway
@@ -63,7 +63,7 @@ export function resolvePublicOrigin(request: Request): string {
  * Shared bearer the chalybclip-live relay presents on the internal live
  * webhooks (/api/internal/live/*). Must equal the relay's
  * CHALYBCLIP_INTERNAL_SIGNING_SECRET. Separate from the SSO/admin secrets —
- * this is the ChalybOBS ↔ relay trust boundary.
+ * this is the ChalyOBS ↔ relay trust boundary.
  */
 export function readRelaySecret(): string | null {
   return process.env.CHALYBOBS_RELAY_SECRET ?? null;

@@ -194,8 +194,8 @@ export function DashboardClient({
         isFullAccess={isFullAccess}
         upgradeUrl={upgradeUrl}
         onToggleClips={() => {
-          // On/off switch for the ChalybClip connection. When ON, ChalybOBS
-          // forwards each stream's lifecycle to ChalybClip and clips flow.
+          // On/off switch for the ChalyClip connection. When ON, ChalyOBS
+          // forwards each stream's lifecycle to ChalyClip and clips flow.
           // No navigation — just toggles the connection state.
           const next = !clipsEnabled;
           setClipsEnabled(next);

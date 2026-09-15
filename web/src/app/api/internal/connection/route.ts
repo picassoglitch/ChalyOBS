@@ -1,11 +1,11 @@
 /**
- * ChalybClip connection state — the shared, bidirectional switch.
+ * ChalyClip connection state — the shared, bidirectional switch.
  *
  *   GET  /api/internal/connection?tenant=<chalyb_user_id>  → { enabled }
  *   POST /api/internal/connection  { tenant, enabled }      → { enabled }
  *
- * Source of truth is ChalybOBS's chalybobs_sessions.clips_enabled. The ChalybOBS
- * header switch toggles it directly; ChalybClip's Live-page switch reads/writes
+ * Source of truth is ChalyOBS's chalybobs_sessions.clips_enabled. The ChalyOBS
+ * header switch toggles it directly; ChalyClip's Live-page switch reads/writes
  * it through this endpoint — so flipping it on either side updates the same
  * connection. Bearer-authed with CHALYBOBS_RELAY_SECRET (shared internal trust).
  *

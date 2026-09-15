@@ -7,7 +7,7 @@ import { HomeIcon, ClipsIcon, ChevronDownIcon } from "./icons";
 interface HeaderProps {
   title: string;
   isLive: boolean;
-  /** ChalybClip connection ON/OFF — when on, streams flow to ChalybClip for clips. */
+  /** ChalyClip connection ON/OFF — when on, streams flow to ChalyClip for clips. */
   clipsEnabled?: boolean;
   /** Whether the connection switch can be toggled (full access only). */
   clipsAvailable?: boolean;
@@ -88,15 +88,15 @@ export function Header({
         </a>
       )}
 
-      {/* ChalybClip connection switch — when ON, streams flow to ChalybClip and
+      {/* ChalyClip connection switch — when ON, streams flow to ChalyClip and
           clips are generated. Only full-access users can flip it on. */}
       <div
         className="flex items-center gap-2 px-2"
         title={
           clipsAvailable
             ? clipsEnabled
-              ? "Conectado a ChalybClip — los streams generan clips"
-              : "Conectar con ChalybClip para generar clips"
+              ? "Conectado a ChalyClip — los streams generan clips"
+              : "Conectar con ChalyClip para generar clips"
             : "Requiere Full Access"
         }
       >
@@ -119,7 +119,7 @@ export function Header({
           />
         </button>
         <span className="text-xs font-medium text-text-secondary hidden sm:inline">
-          ChalybClip
+          ChalyClip
         </span>
       </div>
 

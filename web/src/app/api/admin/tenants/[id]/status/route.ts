@@ -5,7 +5,7 @@
  * tier changes (PRO → free, etc.). Auth: shared bearer CHALYBOBS_ADMIN_TOKEN.
  *
  * Phase 0 stub: no DB, no enforcement. Returns 204 so Chalyb's
- * engine_subscriptions reconciliation passes. When ChalybOBS has destinations
+ * engine_subscriptions reconciliation passes. When ChalyOBS has destinations
  * persisted, this becomes a real "stop streaming + freeze OAuth tokens"
  * mutation on the tenant row.
  */

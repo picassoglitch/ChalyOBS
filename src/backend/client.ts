@@ -6,8 +6,8 @@ import type {
 } from "./types";
 
 /**
- * Backend contract for the ChalybOBS engine. Phase 0 implementation talks to
- * the same Supabase project as Chalyb + ChalybClip (`SupabaseBackend`),
+ * Backend contract for the ChalyOBS engine. Phase 0 implementation talks to
+ * the same Supabase project as Chalyb + ChalyClip (`SupabaseBackend`),
  * with a mock fallback (`MockBackend`) for when env vars aren't configured
  * or for offline UI dev.
  */

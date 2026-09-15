@@ -3,7 +3,7 @@
  *
  * Relay tells us the publisher disconnected. We recover the tenant from the
  * stream_id (<tenant>__<random>), flip the session back to offline, and —
- * when the ChalybClip connection is on — forward the end to ChalybClip, which
+ * when the ChalyClip connection is on — forward the end to ChalyClip, which
  * runs its auto-clip pipeline on the recording. Bearer-authed.
  */
 

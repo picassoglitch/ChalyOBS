@@ -1,19 +1,19 @@
 import "server-only";
 
 /**
- * ChalybClip handoff — when "Get Clips" is on, ChalybOBS forwards the stream's
- * lifecycle to ChalybClip's internal live webhooks so the recording runs
- * through ChalybClip's (already-tested) auto-clip pipeline.
+ * ChalyClip handoff — when "Get Clips" is on, ChalyOBS forwards the stream's
+ * lifecycle to ChalyClip's internal live webhooks so the recording runs
+ * through ChalyClip's (already-tested) auto-clip pipeline.
  *
- * ChalybOBS plays the relay's role toward ChalybClip: same {stream_id,
+ * ChalyOBS plays the relay's role toward ChalyClip: same {stream_id,
  * tenant_id, recording_path} contract, same bearer
- * (CHALYBCLIP_INTERNAL_SIGNING_SECRET, shared across relay + ChalybClip +
- * ChalybOBS). ChalybClip pulls the recording from object storage by stream_id.
+ * (CHALYBCLIP_INTERNAL_SIGNING_SECRET, shared across relay + ChalyClip +
+ * ChalyOBS). ChalyClip pulls the recording from object storage by stream_id.
  *
  * Env:
- *   CHALYBCLIP_INTERNAL_URL   base of ChalybClip's internal API
+ *   CHALYBCLIP_INTERNAL_URL   base of ChalyClip's internal API
  *                           (e.g. https://chalybclip.chalyb.com)
- *   CHALYBCLIP_INTERNAL_SECRET bearer == ChalybClip's signing secret
+ *   CHALYBCLIP_INTERNAL_SECRET bearer == ChalyClip's signing secret
  */
 
 function base(): string | null {
@@ -29,14 +29,14 @@ export function isChalybclipConfigured(): boolean {
   return Boolean(base() && secret());
 }
 
-/** Register the live stream with ChalybClip so it creates its streams row.
- *  Hits the ChalybOBS-handoff endpoint, which maps external_user_id (our
- *  tenant_id = the Chalyb user id) to ChalybClip's own tenant. */
+/** Register the live stream with ChalyClip so it creates its streams row.
+ *  Hits the ChalyOBS-handoff endpoint, which maps external_user_id (our
+ *  tenant_id = the Chalyb user id) to ChalyClip's own tenant. */
 export async function chalybclipStarted(args: {
   streamId: string;
   tenantId: string;
   recordingPath: string;
-  /** Operator's broadcast title; ChalybClip shows it as the stream name
+  /** Operator's broadcast title; ChalyClip shows it as the stream name
    *  (falls back to an auto session tag when omitted/empty). */
   title?: string;
 }): Promise<void> {
@@ -60,11 +60,11 @@ export async function chalybclipStarted(args: {
       cache: "no-store",
     });
   } catch {
-    // Best-effort — never block the relay webhook on a ChalybClip hiccup.
+    // Best-effort — never block the relay webhook on a ChalyClip hiccup.
   }
 }
 
-/** Tell ChalybClip the stream ended → triggers its auto-clip pipeline. */
+/** Tell ChalyClip the stream ended → triggers its auto-clip pipeline. */
 export async function chalybclipEnded(args: {
   streamId: string;
   tenantId: string;

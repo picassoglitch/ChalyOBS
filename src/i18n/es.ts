@@ -18,7 +18,7 @@ export const es = {
   login: {
     title: "INICIAR SESIÓN",
     subtitle:
-      "Inicia sesión con tu cuenta de Chalyb. Es la misma cuenta que usas en chalyb.com y en ChalybClip.",
+      "Inicia sesión con tu cuenta de Chalyb. Es la misma cuenta que usas en chalyb.com y en ChalyClip.",
     email: "CORREO",
     password: "CONTRASEÑA",
     cta: "INICIAR SESIÓN",
@@ -26,7 +26,7 @@ export const es = {
     google: "CONTINUAR CON GOOGLE",
     noAccount: "¿No tienes cuenta? Créala en chalyb.com",
     footer:
-      "ChalybOBS es un engine de Chalyb. Tus credenciales y perfil viven en Chalyb — aquí solo se reflejan.",
+      "ChalyOBS es un engine de Chalyb. Tus credenciales y perfil viven en Chalyb — aquí solo se reflejan.",
     error: "Error al iniciar sesión",
   },
   lobby: {

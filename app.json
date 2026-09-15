@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ChalybOBS",
+    "name": "ChalyOBS",
     "slug": "chalybobs",
     "version": "0.1.0",
     "scheme": "chalybobs",
@@ -10,9 +10,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.chalyb.obs",
       "infoPlist": {
-        "NSCameraUsageDescription": "ChalybOBS uses the camera to preview and stream live video.",
-        "NSMicrophoneUsageDescription": "ChalybOBS captures microphone audio for your live stream.",
-        "NSLocalNetworkUsageDescription": "ChalybOBS connects to your local broadcast/ingest servers on your LAN."
+        "NSCameraUsageDescription": "ChalyOBS uses the camera to preview and stream live video.",
+        "NSMicrophoneUsageDescription": "ChalyOBS captures microphone audio for your live stream.",
+        "NSLocalNetworkUsageDescription": "ChalyOBS connects to your local broadcast/ingest servers on your LAN."
       }
     },
     "android": {
@@ -36,8 +36,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow ChalybOBS to access the camera",
-          "microphonePermission": "Allow ChalybOBS to access the microphone",
+          "cameraPermission": "Allow ChalyOBS to access the camera",
+          "microphonePermission": "Allow ChalyOBS to access the microphone",
           "recordAudioAndroid": true
         }
       ],

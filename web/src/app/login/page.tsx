@@ -22,7 +22,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <div className="flex-1 flex items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-2">Entrar a ChalybOBS</h1>
+          <h1 className="text-2xl font-bold mb-2">Entrar a ChalyOBS</h1>
           <p className="text-text-tertiary text-sm">
             Autenticate desde Chalyb.
           </p>
@@ -33,7 +33,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <strong className="text-warn block mb-1">
               Servicio no configurado.
             </strong>
-            Faltan variables en Railway. ChalybOBS no puede iniciar sesión hasta
+            Faltan variables en Railway. ChalyOBS no puede iniciar sesión hasta
             que estén definidas:
             <ul className="mt-1 ml-4 list-disc font-mono text-[11px]">
               {missing.map((v) => (
@@ -60,7 +60,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         )}
 
         <p className="mt-8 text-center text-[11px] text-text-tertiary">
-          ChalybOBS es un agente de Chalyb — tu sesión vive ahí.
+          ChalyOBS es un agente de Chalyb — tu sesión vive ahí.
         </p>
       </div>
     </div>
