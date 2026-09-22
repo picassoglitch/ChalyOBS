@@ -25,7 +25,7 @@ const MAX_FATAL_BEFORE_ALERT = 6;
  * → recover) and show "reconnecting" — keeping the last frame — instead of
  * flickering back to "waiting". Only sustained failure raises the alert.
  *
- * HLS (not WebRTC) because Railway's HTTP proxy is TCP-only.
+ * HLS (not WebRTC) because the relay's HTTP proxy is TCP-only.
  */
 export function StreamPreview({ hlsUrl, offlineContent }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);

@@ -3,11 +3,11 @@
  *
  * The relay base is the address the encoder pushes to (the ChalyOBS relay
  * fans out to enabled destinations). It MUST be the raw reachable RTMP
- * endpoint — for a Railway service that's the TCP-proxy host:port
- * (e.g. rtmp://acela.proxy.rlwy.net:26151/live), NOT the HTTP custom
- * domain (ingest.chalyb.com only carries HTTP, not RTMP on 1935).
+ * endpoint — the relay host's raw TCP host:port (e.g.
+ * rtmp://relay.example.com:1935/live), NOT an HTTP-only custom domain
+ * (a domain that only carries HTTP can't take RTMP on 1935).
  *
- * RTMP only: MediaMTX has SRT/WebRTC off and Railway's TCP proxy can't
+ * RTMP only: MediaMTX has SRT/WebRTC off and the relay's TCP proxy can't
  * carry UDP, so we don't advertise endpoints that wouldn't connect.
  *
  * Set CHALYBOBS_RELAY_RTMP_URL to that base. The value is read server-side

@@ -58,7 +58,7 @@ export default async function DashboardPage({
     getDestinations(tenantId),
   ]);
 
-  // The reachable RTMP endpoint of the relay (Railway TCP-proxy host:port).
+  // The reachable RTMP endpoint of the relay (raw TCP host:port).
   // Set in Vercel as CHALYBOBS_RELAY_RTMP_URL.
   const relayRtmp =
     process.env.CHALYBOBS_RELAY_RTMP_URL ?? "rtmp://ingest.chalyb.com/live";

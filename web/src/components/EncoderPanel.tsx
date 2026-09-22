@@ -15,7 +15,7 @@ interface EncoderPanelProps {
 
 /**
  * Encoder credentials card. RTMP only — that's the protocol the relay
- * actually ingests (MediaMTX rtmp:1935 behind Railway's TCP proxy; SRT and
+ * actually ingests (MediaMTX rtmp:1935 behind the relay's TCP proxy; SRT and
  * WebRTC ride UDP, which the proxy can't carry). No fake protocol tabs.
  */
 export function EncoderPanel({
