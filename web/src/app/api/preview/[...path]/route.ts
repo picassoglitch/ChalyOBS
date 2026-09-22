@@ -1,8 +1,8 @@
 /**
  * GET /api/preview/<...>   — authenticated HLS preview proxy.
  *
- * The relay (chalybclip-live MediaMTX) serves HLS on its PRIVATE Railway
- * address only — never publicly. This route is the single public door:
+ * The relay (chalybclip-live MediaMTX) serves HLS on a PRIVATE address
+ * only — never publicly. This route is the single public door:
  *
  *   1. Verify the session cookie → tenant.
  *   2. Look up the tenant's stream key.

@@ -11,7 +11,7 @@
  * Chalyb's engine_subscriptions row to land — every re-call returns the
  * same pair, so the 409-vs-201 behavior collapses to a single 200.
  *
- * When ChalyOBS gets a real DB (Postgres on Railway, alongside destinations
+ * When ChalyOBS gets a real DB (Postgres, alongside destinations
  * + OAuth tokens), swap the stub block for actual upsert + first-time vs
  * duplicate detection.
  */

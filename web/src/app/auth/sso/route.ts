@@ -19,8 +19,8 @@ import { SsoTokenError, verifySsoToken } from "@/lib/sso";
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
-  // Public origin (not request.url — that's the internal localhost bind
-  // behind Railway's proxy). All redirects build off this.
+  // Public origin (not request.url — behind a proxy that can be the
+  // internal bind address). All redirects build off this.
   const origin = resolvePublicOrigin(request);
 
   const env = readChalybEnv();
