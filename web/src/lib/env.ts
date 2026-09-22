@@ -49,8 +49,12 @@ export function readChalybEnv(): ChalybEnv | null {
   const ssoSecret = ssoSecretEnv();
   const adminToken = adminTokenEnv();
   const sessionSecret = sessionSecretEnv();
+  // On Cloud Run the hub's Terraform injects PUBLIC_URL=https://<slug>.<domain>
+  // for every engine; CHALYBOBS_PUBLIC_URL overrides it when set.
   const publicUrl =
-    process.env.CHALYBOBS_PUBLIC_URL ?? "http://localhost:3000";
+    process.env.CHALYBOBS_PUBLIC_URL ||
+    process.env.PUBLIC_URL ||
+    "http://localhost:3000";
   const chalybLoginUrl =
     process.env.CHALYB_LOGIN_URL ?? "https://chalyb.com/login";
 
@@ -63,12 +67,12 @@ export function readChalybEnv(): ChalybEnv | null {
  * redirect URLs. Behind a proxy, `request.url` is the internal bind
  * address (http://localhost:8080), so naive `url.origin` redirects send the
  * browser to localhost. Priority:
- *   1. CHALYBOBS_PUBLIC_URL (authoritative — set in Vercel)
+ *   1. CHALYBOBS_PUBLIC_URL, else PUBLIC_URL (Cloud Run, from the hub's Terraform)
  *   2. x-forwarded-proto + x-forwarded-host (proxy-injected)
  *   3. the request's own origin (local dev fallback)
  */
 export function resolvePublicOrigin(request: Request): string {
-  const fromEnv = process.env.CHALYBOBS_PUBLIC_URL;
+  const fromEnv = process.env.CHALYBOBS_PUBLIC_URL || process.env.PUBLIC_URL;
   if (fromEnv) return fromEnv.replace(/\/$/, "");
 
   const proto = request.headers.get("x-forwarded-proto");
