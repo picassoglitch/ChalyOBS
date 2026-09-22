@@ -26,10 +26,29 @@ export interface ChalybEnv {
   chalybLoginUrl: string;
 }
 
+/**
+ * The hub's convention (chalyb/.env.local.example) is that every engine reads
+ * CHALYB_SSO_SECRET / CHALYB_ADMIN_TOKEN, while the hub itself holds one
+ * <SLUG>_SSO_SECRET / <SLUG>_ADMIN_TOKEN pair per engine. Accept both spellings
+ * so ChalyOBS works with the same Vercel variables as the other engines;
+ * the engine-specific CHALYBOBS_* name wins when both are set.
+ */
+function ssoSecretEnv(): string | undefined {
+  return process.env.CHALYBOBS_SSO_SECRET || process.env.CHALYB_SSO_SECRET;
+}
+function adminTokenEnv(): string | undefined {
+  return process.env.CHALYBOBS_ADMIN_TOKEN || process.env.CHALYB_ADMIN_TOKEN;
+}
+function sessionSecretEnv(): string | undefined {
+  return (
+    process.env.CHALYBOBS_SESSION_SECRET || process.env.CHALYB_SESSION_SECRET
+  );
+}
+
 export function readChalybEnv(): ChalybEnv | null {
-  const ssoSecret = process.env.CHALYBOBS_SSO_SECRET;
-  const adminToken = process.env.CHALYBOBS_ADMIN_TOKEN;
-  const sessionSecret = process.env.CHALYBOBS_SESSION_SECRET;
+  const ssoSecret = ssoSecretEnv();
+  const adminToken = adminTokenEnv();
+  const sessionSecret = sessionSecretEnv();
   const publicUrl =
     process.env.CHALYBOBS_PUBLIC_URL ?? "http://localhost:3000";
   const chalybLoginUrl =
@@ -73,8 +92,9 @@ export function readRelaySecret(): string | null {
  *  operators exactly what to set in Vercel. Returns [] when all present. */
 export function missingChalybEnvVars(): string[] {
   const missing: string[] = [];
-  if (!process.env.CHALYBOBS_SSO_SECRET) missing.push("CHALYBOBS_SSO_SECRET");
-  if (!process.env.CHALYBOBS_ADMIN_TOKEN) missing.push("CHALYBOBS_ADMIN_TOKEN");
-  if (!process.env.CHALYBOBS_SESSION_SECRET) missing.push("CHALYBOBS_SESSION_SECRET");
+  if (!ssoSecretEnv()) missing.push("CHALYBOBS_SSO_SECRET (o CHALYB_SSO_SECRET)");
+  if (!adminTokenEnv()) missing.push("CHALYBOBS_ADMIN_TOKEN (o CHALYB_ADMIN_TOKEN)");
+  if (!sessionSecretEnv())
+    missing.push("CHALYBOBS_SESSION_SECRET (o CHALYB_SESSION_SECRET)");
   return missing;
 }

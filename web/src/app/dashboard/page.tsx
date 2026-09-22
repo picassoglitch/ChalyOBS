@@ -36,9 +36,16 @@ export default async function DashboardPage({
         <div className="max-w-md">
           <h1 className="text-xl font-bold mb-2">Base de datos no configurada</h1>
           <p className="text-text-tertiary text-sm">
-            Falta <code className="font-mono">CHALYBOBS_SUPABASE_URL</code> y{" "}
-            <code className="font-mono">CHALYBOBS_SUPABASE_SECRET_KEY</code>{" "}
-            en Vercel (Project → Settings → Environment Variables). El multi-tenant no puede cargar sin ellas.
+            Falta la URL y la secret key de Supabase en Vercel (Project →
+            Settings → Environment Variables). Se aceptan los mismos nombres
+            que en los otros engines:{" "}
+            <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code> o{" "}
+            <code className="font-mono">SUPABASE_URL</code> y{" "}
+            <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code>, o los
+            específicos{" "}
+            <code className="font-mono">CHALYBOBS_SUPABASE_URL</code> y{" "}
+            <code className="font-mono">CHALYBOBS_SUPABASE_SECRET_KEY</code>.
+            El multi-tenant no puede cargar sin ellas.
           </p>
         </div>
       </div>
