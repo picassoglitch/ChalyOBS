@@ -38,7 +38,7 @@ export default async function DashboardPage({
           <p className="text-text-tertiary text-sm">
             Falta <code className="font-mono">CHALYBOBS_SUPABASE_URL</code> y{" "}
             <code className="font-mono">CHALYBOBS_SUPABASE_SECRET_KEY</code>{" "}
-            en Railway. El multi-tenant no puede cargar sin ellas.
+            en Vercel (Project → Settings → Environment Variables). El multi-tenant no puede cargar sin ellas.
           </p>
         </div>
       </div>
@@ -52,7 +52,7 @@ export default async function DashboardPage({
   ]);
 
   // The reachable RTMP endpoint of the relay (Railway TCP-proxy host:port).
-  // Set in Railway as CHALYBOBS_RELAY_RTMP_URL.
+  // Set in Vercel as CHALYBOBS_RELAY_RTMP_URL.
   const relayRtmp =
     process.env.CHALYBOBS_RELAY_RTMP_URL ?? "rtmp://ingest.chalyb.com/live";
   // Preview is available when the relay's private HLS address is set; the

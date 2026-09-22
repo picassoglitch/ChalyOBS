@@ -21,7 +21,7 @@ export interface ChalybEnv {
   /** Absolute public URL of this ChalyOBS deploy. Used to construct
    *  return_to on the login redirect. */
   publicUrl: string;
-  /** Where to send unauthenticated visitors. Shared variable in Railway
+  /** Where to send unauthenticated visitors. Shared variable in Vercel
    *  (`CHALYB_LOGIN_URL`) so every Chalyb engine points at the same login. */
   chalybLoginUrl: string;
 }
@@ -41,10 +41,10 @@ export function readChalybEnv(): ChalybEnv | null {
 
 /**
  * Resolve the public-facing origin (scheme + host) for building absolute
- * redirect URLs. Behind Railway's proxy, `request.url` is the internal bind
+ * redirect URLs. Behind a proxy, `request.url` is the internal bind
  * address (http://localhost:8080), so naive `url.origin` redirects send the
  * browser to localhost. Priority:
- *   1. CHALYBOBS_PUBLIC_URL (authoritative — set in Railway)
+ *   1. CHALYBOBS_PUBLIC_URL (authoritative — set in Vercel)
  *   2. x-forwarded-proto + x-forwarded-host (proxy-injected)
  *   3. the request's own origin (local dev fallback)
  */
@@ -70,7 +70,7 @@ export function readRelaySecret(): string | null {
 }
 
 /** List the env vars that are missing — used by the login page to tell
- *  operators exactly what to set in Railway. Returns [] when all present. */
+ *  operators exactly what to set in Vercel. Returns [] when all present. */
 export function missingChalybEnvVars(): string[] {
   const missing: string[] = [];
   if (!process.env.CHALYBOBS_SSO_SECRET) missing.push("CHALYBOBS_SSO_SECRET");

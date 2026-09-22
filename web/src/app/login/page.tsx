@@ -10,7 +10,7 @@ interface LoginPageProps {
  * /auth/sso?token=... which sets our session cookie.
  *
  * When env vars are missing this page surfaces the exact var names so
- * operators see what to set in Railway without having to read logs.
+ * operators see what to set in Vercel without having to read logs.
  */
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { next, error } = await searchParams;
@@ -33,7 +33,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <strong className="text-warn block mb-1">
               Servicio no configurado.
             </strong>
-            Faltan variables en Railway. ChalyOBS no puede iniciar sesión hasta
+            Faltan variables en Vercel. ChalyOBS no puede iniciar sesión hasta
             que estén definidas:
             <ul className="mt-1 ml-4 list-disc font-mono text-[11px]">
               {missing.map((v) => (
