@@ -8,6 +8,7 @@ import {
   PLATFORM_META,
   PlatformId,
 } from "./destinations";
+import { isFullAccessTier } from "./tier";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -17,6 +18,7 @@ import {
  * Tables (see chalyb migration 0023):
  *   chalybobs_sessions      1 row per tenant — title, flags, ingest stream key
  *   chalybobs_destinations  N rows per tenant — one per connected platform
+ *   chalybobs_streams       1 row per stream session — hub reservation (0026)
  */
 
 export interface TenantSession {
@@ -497,6 +499,136 @@ export function tenantFromStreamId(streamId: string): string | null {
   const i = streamId.lastIndexOf(STREAM_ID_SEP);
   if (i <= 0) return null;
   return streamId.slice(0, i);
+}
+
+// ── Stream sessions + usage reservations (migration 0026) ───────────────────
+
+export interface StreamRecord {
+  reservationId: string | null;
+  admittedAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+/** One row per stream session (stream_id from mintStreamId), holding the
+ *  hub reservation admitted in live/authorize. Returns false on failure. */
+export async function recordStreamAdmission(args: {
+  streamId: string;
+  tenantId: string;
+  reservationId: string | null;
+  lane: string | null;
+}): Promise<boolean> {
+  try {
+    const db = getSupabaseAdmin();
+    const { error } = await db.from("chalybobs_streams").upsert(
+      {
+        stream_id: args.streamId,
+        tenant_id: args.tenantId,
+        reservation_id: args.reservationId,
+        lane: args.lane,
+        admitted_at: new Date().toISOString(),
+      },
+      { onConflict: "stream_id" },
+    );
+    if (error) {
+      console.error(`[streams] admission insert failed: ${error.message}`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`[streams] admission insert failed: ${e instanceof Error ? e.message : String(e)}`);
+    return false;
+  }
+}
+
+export async function getStreamRecord(
+  tenantId: string,
+  streamId: string,
+): Promise<StreamRecord | null> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_streams")
+    .select("reservation_id, admitted_at, started_at, ended_at")
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    reservationId: (data.reservation_id as string | null) ?? null,
+    admittedAt: (data.admitted_at as string | null) ?? null,
+    startedAt: (data.started_at as string | null) ?? null,
+    endedAt: (data.ended_at as string | null) ?? null,
+  };
+}
+
+/** First live/started wins (duration fallback when the relay sends no
+ *  duration_s on live/ended). */
+export async function markStreamStarted(
+  tenantId: string,
+  streamId: string,
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  await db
+    .from("chalybobs_streams")
+    .update({ started_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .is("started_at", null);
+}
+
+export async function markStreamEnded(
+  tenantId: string,
+  streamId: string,
+  durationS: number,
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  await db
+    .from("chalybobs_streams")
+    .update({ ended_at: new Date().toISOString(), duration_s: durationS })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId);
+}
+
+// ── Tier (persisted from SSO / provisioning, migration 0026) ────────────────
+
+/** Persist the tier Chalyb last told us about (SSO launch or tenant
+ *  provisioning), so relay callbacks — which carry no user cookie — can
+ *  re-check it. Best-effort: never blocks login. */
+export async function saveTenantTier(
+  tenantId: string,
+  tier: string | null,
+): Promise<void> {
+  try {
+    await getOrCreateSession(tenantId); // ensure row exists
+    const db = getSupabaseAdmin();
+    const { error } = await db
+      .from("chalybobs_sessions")
+      .update({ tier, tier_updated_at: new Date().toISOString() })
+      .eq("tenant_id", tenantId);
+    if (error) console.error(`[tier] save failed: ${error.message}`);
+  } catch (e) {
+    console.error(`[tier] save failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * Relay-side ChalyClip gate: the connection must be on AND the tier we last
+ * stored must still be full-access. A user who was downgraded after turning
+ * clips on (clips_enabled stays true) is stopped here. No stored tier (never
+ * logged in since migration 0026) fails closed.
+ */
+export async function getClipsForwardingAllowed(tenantId: string): Promise<boolean> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_sessions")
+    .select("clips_enabled, tier")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error || !data) return false;
+  return (
+    ((data.clips_enabled as boolean | null) ?? false) &&
+    isFullAccessTier(data.tier as string | null)
+  );
 }
 
 /** Fan-out targets for the relay: enabled + fully-configured destinations,

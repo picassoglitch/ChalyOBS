@@ -13,8 +13,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRelayBearer } from "@/lib/relay-auth";
 import {
-  getClipsEnabled,
+  getClipsForwardingAllowed,
   getOrCreateSession,
+  markStreamStarted,
   tenantFromStreamId,
   updateSession,
 } from "@/lib/data";
@@ -38,12 +39,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   await updateSession(tenantId, { isLive: true });
+  // Duration fallback for metering when live/ended carries no duration_s.
+  await markStreamStarted(tenantId, streamId);
 
   // Hand off to ChalyClip's pipeline when the connection is on. Forward the
   // operator's broadcast title so ChalyClip shows the real stream name
-  // instead of an auto-generated tag. (getClipsEnabled stays the gate — its
-  // null-default differs from getOrCreateSession's, so don't conflate them.)
-  if (await getClipsEnabled(tenantId)) {
+  // instead of an auto-generated tag. The gate is the connection flag AND the
+  // stored tier (a downgraded user keeps clips_enabled=true); its null-default
+  // differs from getOrCreateSession's, so don't conflate them.
+  if (await getClipsForwardingAllowed(tenantId)) {
     const session = await getOrCreateSession(tenantId);
     await chalybclipStarted({
       streamId,
