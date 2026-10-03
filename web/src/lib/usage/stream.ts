@@ -3,6 +3,7 @@ import {
   getStreamRecord,
   markStreamEnded,
   recordStreamAdmission,
+  getFanoutDestinations,
 } from "@/lib/data";
 import { getHubClient } from "./hub";
 import {
@@ -87,6 +88,10 @@ export async function finalizeStream(args: {
     now,
   });
   const reservationId = record?.reservationId ?? null;
+  // Egress scales with fan-out: one copy per enabled destination.
+  const destinations = await getFanoutDestinations(args.tenantId)
+    .then((d) => d.length)
+    .catch(() => 1);
   if (!record) {
     console.warn(
       `[usage] live/ended for unknown stream ${args.streamId} — reporting without reservation`,
@@ -107,6 +112,7 @@ export async function finalizeStream(args: {
             durationS,
             reservationId,
             occurredAt: now,
+            destinations,
           }),
         ],
       },

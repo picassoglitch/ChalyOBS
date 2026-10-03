@@ -249,3 +249,26 @@ test("drain: thrown sender errors are retried, not fatal", async () => {
   assert.equal(stats.retried, 1);
   assert.equal(state.get(1)!.error, "network boom");
 });
+
+test("stream cost: real egress rate, scaled by fan-out destinations", () => {
+  // 6 Mbps × 60 s = 0.0419 GiB × $0.085/GiB (GCP Standard tier, Iowa).
+  assert.equal(STREAM_COST_USD_MICROS_PER_MINUTE, 3562);
+  const four = buildStreamMinutesEvent({
+    streamId: "s4",
+    durationS: 600,
+    reservationId: null,
+    occurredAt: new Date(),
+    destinations: 4,
+  });
+  assert.equal(four.cost_usd_micros, 10 * 4 * 3562);
+  assert.equal((four.metadata as Record<string, unknown>).destinations, 4);
+  // No destinations enabled still bills one copy.
+  const none = buildStreamMinutesEvent({
+    streamId: "s0",
+    durationS: 60,
+    reservationId: null,
+    occurredAt: new Date(),
+    destinations: 0,
+  });
+  assert.equal(none.cost_usd_micros, 3562);
+});

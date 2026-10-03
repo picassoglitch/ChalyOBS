@@ -27,15 +27,21 @@ export const STREAM_METER_PROVIDER = "gcp";
 export const STREAM_RESERVATION_TTL_SECONDS = 8 * 60 * 60;
 
 /**
- * Relay + egress cost per streamed minute, in USD micros.
+ * Relay egress per streamed minute, per fan-out destination, in USD micros.
  *
- * TODO(pricing): conservative PLACEHOLDER ($0.002/min = $0.12/h). Replace
- * with the real figure from the chalybclip-live relay's GCP billing export
- * (Cloud Run/GCE instance-seconds of the MediaMTX + ffmpeg fan-out host,
- * plus network egress × number of fan-out destinations, plus the recording
- * write to object storage), divided by streamed minutes.
+ * The relay (GCE e2-small `chalyb-relay`, us-central1, Standard network
+ * tier) copies each stream to every destination with `ffmpeg -c copy`, so
+ * egress — not compute — is what scales with use. GCP billing catalog
+ * (2026-10-03): "Network Standard Data Transfer Out to Internet from Iowa"
+ * = $0.085/GiB (first 200 GiB/month free; ingress free). At a nominal
+ * 6 Mbps: 6e6/8 × 60 B = 0.0419 GiB/min × $0.085 = $0.00356/min/destination.
+ * The VM (~$12/mo) and its IP (~$4/mo) are fixed and not metered.
  */
-export const STREAM_COST_USD_MICROS_PER_MINUTE = 2000;
+export const RELAY_EGRESS_USD_PER_GIB = 0.085;
+export const NOMINAL_STREAM_BITRATE_MBPS = 6;
+export const STREAM_COST_USD_MICROS_PER_MINUTE = Math.round(
+  ((NOMINAL_STREAM_BITRATE_MBPS * 1e6) / 8 * 60 / 2 ** 30) * RELAY_EGRESS_USD_PER_GIB * 1e6,
+);
 
 /** Admission estimate: reserve one hour's worth up front. Actual spend is
  *  reported on live/ended. */
@@ -148,10 +154,13 @@ export function streamMinutes(durationS: number): number {
   return Math.ceil(durationS / 60);
 }
 
-export function streamCostUsdMicros(minutes: number): number {
+/** Egress for `destinations` copies of the stream. At least one: the
+ *  stream is still received and served even with no destination enabled. */
+export function streamCostUsdMicros(minutes: number, destinations = 1): number {
+  const copies = Math.max(1, Math.floor(destinations));
   return Math.min(
     MAX_COST_USD_MICROS,
-    Math.max(0, Math.round(minutes)) * STREAM_COST_USD_MICROS_PER_MINUTE,
+    Math.max(0, Math.round(minutes)) * copies * STREAM_COST_USD_MICROS_PER_MINUTE,
   );
 }
 
@@ -160,13 +169,16 @@ export function buildStreamMinutesEvent(args: {
   durationS: number;
   reservationId: string | null;
   occurredAt: Date;
+  /** Fan-out destinations the relay pushed to. */
+  destinations?: number;
 }): UsageEvent {
   const minutes = streamMinutes(args.durationS);
+  const destinations = Math.max(1, Math.floor(args.destinations ?? 1));
   const event: UsageEvent = {
     kind: STREAM_METER_KIND,
     provider: STREAM_METER_PROVIDER,
     amount: minutes,
-    cost_usd_micros: streamCostUsdMicros(minutes),
+    cost_usd_micros: streamCostUsdMicros(minutes, destinations),
     // Idempotent on the hub: (engine, source_id) is unique.
     source_id: args.streamId,
     occurred_at: args.occurredAt.toISOString(),
@@ -175,6 +187,7 @@ export function buildStreamMinutesEvent(args: {
       stream_id: args.streamId,
       duration_s: Math.round(args.durationS),
       rate_usd_micros_per_minute: STREAM_COST_USD_MICROS_PER_MINUTE,
+      destinations,
     },
   };
   if (args.reservationId) event.reservation_id = args.reservationId;
