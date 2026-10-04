@@ -13,7 +13,7 @@ interface LoginPageProps {
  * operators see what to set in Vercel without having to read logs.
  */
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { next, error } = await searchParams;
+  const { error } = await searchParams;
   const env = readChalybEnv();
   const missing = missingChalybEnvVars();
   const configured = env !== null;
@@ -45,7 +45,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {configured && (
           <a
-            href={buildChalybLoginUrl(env, next)}
+            href={buildChalybLoginUrl(env)}
             className="w-full flex items-center justify-center gap-3 py-3 rounded-lg bg-accent text-white hover:opacity-90 transition text-sm font-semibold"
           >
             Continuar con Chalyb →
@@ -69,14 +69,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
 function buildChalybLoginUrl(
   env: NonNullable<ReturnType<typeof readChalybEnv>>,
-  next: string | undefined,
 ): string {
-  const returnTo = new URL(next ?? "/dashboard", env.publicUrl).toString();
-  const url = new URL(env.chalybLoginUrl);
-  // Chalyb's login accepts a return_to that, after auth, becomes the
-  // base used to build the SSO launch URL. Naming mirrors what Chalyb's
-  // launch URL builder expects.
-  url.searchParams.set("engine", "chalybobs");
-  url.searchParams.set("return_to", returnTo);
-  return url.toString();
+  // The hub's launcher signs the person in if needed (/sign-in?next=…), then
+  // mints the SSO token and lands them on our /auth/sso → /dashboard. Its
+  // /login → /sign-in ignores engine/return_to, so linking there left people
+  // on chalyb.com instead of coming back here.
+  const hub = process.env.CHALYB_BASE_URL?.trim() || new URL(env.chalybLoginUrl).origin;
+  return new URL("/auth/launch/chalybobs", hub).toString();
 }
