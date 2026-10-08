@@ -9,6 +9,7 @@ import {
   PlatformId,
 } from "./destinations";
 import { isFullAccessTier } from "./tier";
+import { buildPushUrl } from "./push-url";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -75,7 +76,7 @@ export async function getOrCreateSession(
   };
   // record_enabled is omitted on insert — the column keeps its DB default
   // (true). Recording isn't a user-facing toggle anymore (ChalyClip drives it).
-  await db.from("chalybobs_sessions").insert({
+  const { error } = await db.from("chalybobs_sessions").insert({
     tenant_id: tenantId,
     title: fresh.title,
     is_live: fresh.isLive,
@@ -83,6 +84,28 @@ export async function getOrCreateSession(
     stream_key: fresh.streamKey,
     broadcast_meta: fresh.broadcastMeta,
   });
+  if (error) {
+    // Lost a first-access race (SSO tier save, the dashboard and a server
+    // action can all create the row at once): another request inserted it
+    // first. Return what's stored — never a stream key the DB doesn't have,
+    // or the encoder panel would show a key the relay rejects.
+    const { data: stored } = await db
+      .from("chalybobs_sessions")
+      .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (stored) {
+      const title = stored.title as string;
+      return {
+        title,
+        isLive: stored.is_live as boolean,
+        clipsEnabled: (stored.clips_enabled as boolean | null) ?? true,
+        streamKey: stored.stream_key as string,
+        broadcastMeta: normalizeBroadcastMeta(stored.broadcast_meta, title),
+      };
+    }
+    console.error(`[sessions] create failed for tenant ${tenantId}: ${error.message}`);
+  }
   return fresh;
 }
 
@@ -133,6 +156,23 @@ export async function updateSession(
   if (patch.streamKey !== undefined) row.stream_key = patch.streamKey;
   if (patch.broadcastMeta !== undefined) row.broadcast_meta = patch.broadcastMeta;
   await db.from("chalybobs_sessions").update(row).eq("tenant_id", tenantId);
+}
+
+/** Rename the broadcast from the header: the session title AND the
+ *  composer's broadcast_meta.title, so "Actualizar títulos" opens with the
+ *  same title after a reload (normalizeBroadcastMeta prefers the blob's). */
+export async function setSessionTitle(
+  tenantId: string,
+  title: string,
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_sessions")
+    .select("broadcast_meta")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const meta = normalizeBroadcastMeta(data?.broadcast_meta ?? null, title);
+  await updateSession(tenantId, { title, broadcastMeta: { ...meta, title } });
 }
 
 export async function regenerateStreamKey(tenantId: string): Promise<string> {
@@ -643,25 +683,16 @@ export async function getFanoutDestinations(
     .select("platform_id, ingest_url, stream_key, enabled")
     .eq("tenant_id", tenantId)
     .eq("enabled", true);
-  return (data ?? [])
-    .filter(
-      (r) =>
-        ((r.ingest_url as string) ?? "").trim().length > 0 &&
-        ((r.stream_key as string) ?? "").trim().length > 0,
-    )
-    .map((r) => {
-      const base = (r.ingest_url as string).trim().replace(/\/+$/, "");
-      const key = (r.stream_key as string).trim();
-      // SRT carries the credential as ?streamid=..., not as a path
-      // segment. If the user's URL already embeds it, it's complete as-is.
-      const pushUrl = base.startsWith("srt://")
-        ? base.includes("streamid=")
-          ? base
-          : `${base}${base.includes("?") ? "&" : "?"}streamid=${key}`
-        : `${base}/${key}`;
-      return {
-        platform: r.platform_id as string,
-        push_url: pushUrl,
-      };
-    });
+  // buildPushUrl drops anything the relay must not push to (non rtmp/rtmps/
+  // srt schemes, missing key): those legs would be ffmpeg writing to a
+  // file: or http: target from inside the relay VM.
+  const out: { platform: string; push_url: string }[] = [];
+  for (const r of data ?? []) {
+    const pushUrl = buildPushUrl(
+      (r.ingest_url as string | null) ?? "",
+      (r.stream_key as string | null) ?? "",
+    );
+    if (pushUrl) out.push({ platform: r.platform_id as string, push_url: pushUrl });
+  }
+  return out;
 }

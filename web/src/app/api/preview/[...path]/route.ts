@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/server-session";
 import { getStreamKey } from "@/lib/data";
+import { safePreviewPath } from "@/lib/push-url";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +47,13 @@ export async function GET(
   }
 
   const { path } = await ctx.params;
-  // Guard against path traversal — only forward simple segment names.
-  const safe = path.filter((p) => p !== ".." && p !== ".");
-  const sub = safe.join("/");
+  // Guard against path traversal — only forward plain file names. (Dropping
+  // ".." alone wasn't enough: a segment like "..%2F<other>" decodes to
+  // "../<other>" and fetch() then normalizes it out of live/<key>/.)
+  const sub = safePreviewPath(path);
+  if (!sub) {
+    return NextResponse.json({ error: "bad_path" }, { status: 400 });
+  }
   const upstream = `${base}/live/${encodeURIComponent(streamKey)}/${sub}${request.nextUrl.search}`;
 
   let res: Response;
