@@ -67,6 +67,22 @@ const supabaseStore: OutboxStore = {
     }
     return (data ?? []) as OutboxRow[];
   },
+  async claim(id, now, leaseUntil) {
+    // One conditional UPDATE: Postgres re-checks the WHERE under the row
+    // lock, so of two drains racing for the same row only one gets it.
+    const { data, error } = await getSupabaseAdmin()
+      .from(TABLE)
+      .update({ next_attempt_at: leaseUntil.toISOString() })
+      .eq("id", id)
+      .eq("status", "pending")
+      .lte("next_attempt_at", now.toISOString())
+      .select("id");
+    if (error) {
+      console.error(`[usage-outbox] claim failed id=${id}: ${error.message}`);
+      return false;
+    }
+    return (data ?? []).length === 1;
+  },
   async markSent(id, attempts) {
     await getSupabaseAdmin()
       .from(TABLE)
@@ -77,13 +93,15 @@ const supabaseStore: OutboxStore = {
     await getSupabaseAdmin()
       .from(TABLE)
       .update({ attempts, next_attempt_at: nextAttemptAt.toISOString(), last_error: error })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", "pending");
   },
   async markDead(id, attempts, error) {
     await getSupabaseAdmin()
       .from(TABLE)
       .update({ status: "dead", attempts, last_error: error })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", "pending");
   },
 };
 

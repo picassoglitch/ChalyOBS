@@ -112,10 +112,19 @@ test("stream.minutes event: amount, cost, idempotent source_id, reservation", ()
   assert.equal("reservation_id" in unmetered, false);
 });
 
-test("isPermanentFailure: 4xx except 408/429; network and 5xx retry", () => {
+test("isPermanentFailure: only the hub rejecting the payload; config 4xx retry", () => {
   assert.equal(isPermanentFailure(400), true);
+  assert.equal(isPermanentFailure(413), true);
   assert.equal(isPermanentFailure(422), true);
-  assert.equal(isPermanentFailure(404), true);
+  // Auth / config: the row is fine, our deployment isn't.
+  assert.equal(isPermanentFailure(401, '{"error":"missing bearer token"}'), false);
+  assert.equal(isPermanentFailure(403, '{"error":"invalid bearer token"}'), false);
+  assert.equal(isPermanentFailure(404, '{"error":"unknown engine: chalybobs"}'), false);
+  assert.equal(isPermanentFailure(404, '{"error":"unknown user_id"}'), false);
+  assert.equal(isPermanentFailure(404, "<html>404: This page could not be found</html>"), false);
+  assert.equal(isPermanentFailure(400, '{"ok":false,"error":"engine not registered: chalybobs"}', "settle"), false);
+  // The settle route's own 404: that reservation doesn't exist.
+  assert.equal(isPermanentFailure(404, '{"error":"unknown reservation"}', "settle"), true);
   assert.equal(isPermanentFailure(408), false);
   assert.equal(isPermanentFailure(429), false);
   assert.equal(isPermanentFailure(500), false);
@@ -133,9 +142,20 @@ test("backoff grows and caps at 1h", () => {
 
 function memStore(rows: OutboxRow[]) {
   const state = new Map<number, { status: string; attempts: number; next?: Date; error?: string }>();
+  const claims: number[] = [];
   const store: OutboxStore = {
     async listPending(limit) {
       return rows.filter((r) => !state.has(r.id) || state.get(r.id)!.status === "pending").slice(0, limit);
+    },
+    async claim(id, now, leaseUntil) {
+      const row = rows.find((r) => r.id === id)!;
+      const cur = state.get(id);
+      if (cur && cur.status !== "pending") return false;
+      const next = cur?.next ?? new Date(row.next_attempt_at);
+      if (next.getTime() > now.getTime()) return false;
+      state.set(id, { status: "pending", attempts: cur?.attempts ?? row.attempts, next: leaseUntil });
+      claims.push(id);
+      return true;
     },
     async markSent(id, attempts) {
       state.set(id, { status: "sent", attempts });
@@ -147,7 +167,7 @@ function memStore(rows: OutboxRow[]) {
       state.set(id, { status: "dead", attempts, error });
     },
   };
-  return { store, state };
+  return { store, state, claims };
 }
 
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -204,7 +224,7 @@ test("drain: transient usage failure holds back the settle and schedules a retry
   assert.equal(r1.status, "pending");
   assert.equal(r1.attempts, 1);
   assert.equal(r1.next!.getTime(), NOW.getTime() + 30_000);
-  assert.equal(state.has(2), false);
+  assert.equal(state.has(2), false); // never claimed: it was held back
   assert.ok(logs.some((l) => l.includes("delivery failed")));
 });
 
@@ -271,4 +291,74 @@ test("stream cost: real egress rate, scaled by fan-out destinations", () => {
     destinations: 0,
   });
   assert.equal(none.cost_usd_micros, 3562);
+});
+
+for (const [status, body] of [
+  [401, '{"error":"missing bearer token"}'],
+  [403, '{"error":"invalid bearer token"}'],
+  [404, '{"error":"unknown engine: chalybobs"}'],
+  [404, '{"error":"unknown user_id"}'],
+  [404, "<html>This page could not be found</html>"],
+] as const) {
+  test(`drain: hub ${status} ${body.slice(0, 30)} is config — retried, never dead, settle held`, async () => {
+    const { store, state } = memStore([usageRow(1, "r1"), settleRow(2, "r1")]);
+    const logs: string[] = [];
+    const stats = await drainOutbox(
+      store,
+      async (row) => (row.kind === "usage" ? { ok: false, status, message: body } : { ok: true }),
+      { now: NOW, log: (m) => logs.push(m) },
+    );
+    assert.deepEqual(stats, { sent: 0, retried: 1, dead: 0, skipped: 1 });
+    assert.equal(state.get(1)!.status, "pending");
+    assert.equal(state.get(1)!.next!.getTime(), NOW.getTime() + 30_000);
+    assert.ok(logs.some((l) => l.includes("config, not the row")));
+  });
+}
+
+test("drain: a row another drain already claimed is skipped (no double send)", async () => {
+  const rows = [usageRow(1, "r1"), settleRow(2, "r1")];
+  const { store } = memStore(rows);
+  const sent: number[] = [];
+  const send = async (row: OutboxRow) => {
+    sent.push(row.id);
+    await new Promise((r) => setTimeout(r, 5));
+    return { ok: true } as const;
+  };
+  // Two drains read the same pending list at once.
+  await Promise.all([
+    drainOutbox(store, send, { now: NOW, log: () => {} }),
+    drainOutbox(store, send, { now: NOW, log: () => {} }),
+  ]);
+  assert.deepEqual(sent.sort(), [1, 2]);
+});
+
+test("decideAdmission: hub 4xx — reason honoured, unknown user, config", () => {
+  const fail = (status: number, message: string) =>
+    decideAdmission({ ok: false, status, message });
+  assert.deepEqual(fail(409, '{"allowed":false,"reason":"streams_cap"}'), {
+    allow: false,
+    error: "usage_refused",
+    reason: "streams_cap",
+  });
+  assert.deepEqual(fail(404, '{"error":"unknown user_id"}'), {
+    allow: false,
+    error: "usage_refused",
+    reason: "unknown_user",
+  });
+  for (const [status, msg] of [
+    [401, '{"error":"missing bearer token"}'],
+    [403, '{"error":"invalid bearer token"}'],
+    [404, '{"error":"unknown engine: chalybobs"}'],
+  ] as const) {
+    assert.deepEqual(fail(status, msg), {
+      allow: false,
+      error: "usage_unavailable",
+      reason: "hub_rejected",
+    });
+  }
+  assert.deepEqual(fail(503, "down"), {
+    allow: false,
+    error: "usage_unavailable",
+    reason: "hub_unreachable",
+  });
 });

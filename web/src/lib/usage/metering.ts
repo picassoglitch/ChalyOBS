@@ -86,11 +86,33 @@ export type AdmissionDecision =
   | { allow: true; reservationId: string | null; lane: string | null; metered: boolean }
   | { allow: false; error: string; reason?: string };
 
+/** The hub's JSON error body (`{ error, reason }`) out of a failed call's
+ *  message (hub.ts keeps the first 500 chars of the body). {} when it isn't
+ *  JSON — e.g. an HTML 404 page from a wrong CHALYB_BASE_URL. */
+export function hubErrorBody(message: string | undefined): { error?: string; reason?: string } {
+  if (!message) return {};
+  try {
+    const v: unknown = JSON.parse(message);
+    if (!v || typeof v !== "object") return {};
+    const o = v as Record<string, unknown>;
+    return {
+      error: typeof o.error === "string" ? o.error : undefined,
+      reason: typeof o.reason === "string" ? o.reason : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Turn a hub admit result into an authorize decision.
  *   hub === "disabled"      → CHALYB_BASE_URL unset (dev): allow, unmetered.
  *   hub === "misconfigured" → base URL set, bearer missing: fail closed.
- *   transport/HTTP failure  → fail closed (never stream unmetered in prod).
+ *   transport / 5xx         → fail closed as hub_unreachable.
+ *   4xx with a `reason`     → refuse with that reason, like allowed=false.
+ *   404 "unknown user_id"   → refuse as unknown_user (the account, not the hub).
+ *   other 4xx (401/403 bearer, 404 unknown engine, 400) → fail closed as
+ *                             hub_rejected: our config, not an outage.
  *   allowed=false           → refuse with the hub's reason.
  */
 export function decideAdmission(
@@ -103,6 +125,14 @@ export function decideAdmission(
     return { allow: false, error: "usage_unavailable", reason: "hub_token_missing" };
   }
   if (!hub.ok) {
+    if (hub.status !== undefined && hub.status >= 400 && hub.status < 500 && hub.status !== 408 && hub.status !== 429) {
+      const body = hubErrorBody(hub.message);
+      if (body.reason) return { allow: false, error: "usage_refused", reason: body.reason };
+      if (hub.status === 404 && body.error === "unknown user_id") {
+        return { allow: false, error: "usage_refused", reason: "unknown_user" };
+      }
+      return { allow: false, error: "usage_unavailable", reason: "hub_rejected" };
+    }
     return { allow: false, error: "usage_unavailable", reason: "hub_unreachable" };
   }
   if (hub.data.allowed !== true) {
@@ -210,6 +240,10 @@ export interface OutboxRow {
 export interface OutboxStore {
   /** Pending rows in insertion order (id asc), due or not. */
   listPending(limit: number): Promise<OutboxRow[]>;
+  /** Atomically take a due pending row for this drain: push its
+   *  next_attempt_at to `leaseUntil` only if it is still pending and due
+   *  at `now`. False = another drain took it first (or it changed). */
+  claim(id: number, now: Date, leaseUntil: Date): Promise<boolean>;
   markSent(id: number, attempts: number): Promise<void>;
   markRetry(id: number, attempts: number, nextAttemptAt: Date, error: string): Promise<void>;
   markDead(id: number, attempts: number, error: string): Promise<void>;
@@ -219,16 +253,38 @@ export type OutboxSend = (
   row: OutboxRow,
 ) => Promise<{ ok: true } | { ok: false; status?: number; message: string }>;
 
-/** Contract: a 4xx other than 408/429 is permanent (includes 422). */
-export function isPermanentFailure(status: number | undefined): boolean {
-  return (
-    status !== undefined &&
-    status >= 400 &&
-    status < 500 &&
-    status !== 408 &&
-    status !== 429
-  );
+/** Statuses the hub uses to reject what we SENT: POST /usage validation
+ *  (400 bad field, 413 too many events, 422 out of range), a closed
+ *  reservation's 409. */
+const PAYLOAD_REJECTIONS = new Set([400, 409, 413, 422]);
+
+/**
+ * Is this failure a permanent rejection of THIS row (mark it dead)?
+ * Only when the hub rejected the payload itself. 401/403 (a rotated or
+ * mismatched token), 404 (unknown engine/user, a wrong base URL's 404 page),
+ * "engine not registered" and any other 4xx are our config: the same row
+ * goes through once it's fixed, so it is retried with backoff instead —
+ * dead-lettering it would mean that usage is never billed.
+ */
+export function isPermanentFailure(
+  status: number | undefined,
+  message = "",
+  kind: OutboxKind = "usage",
+): boolean {
+  if (status === undefined || status < 400 || status >= 500) return false;
+  const error = (hubErrorBody(message).error ?? "").toLowerCase();
+  if (error.includes("engine")) return false;
+  if (kind === "settle" && status === 404) return error === "unknown reservation";
+  return PAYLOAD_REJECTIONS.has(status);
 }
+
+/** A 4xx that isn't about the row: auth / config. Retried, logged loudly. */
+function isConfigFailure(status: number | undefined): boolean {
+  return status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
+/** How long a drain holds a claimed row before another may retry it. */
+const LEASE_SECONDS = 120;
 
 /** 30 s, 60 s, 2 min, … capped at 1 h. Never gives up (contract: don't drop). */
 export function backoffSeconds(attempts: number): number {
@@ -271,6 +327,15 @@ export async function drainOutbox(
       continue;
     }
 
+    const leaseUntil = new Date(now.getTime() + LEASE_SECONDS * 1000);
+    if (!(await store.claim(row.id, now, leaseUntil))) {
+      // Another drain (live/ended on another instance, the scheduler) is
+      // delivering it right now.
+      if (row.kind === "usage" && res) blocked.add(res);
+      stats.skipped++;
+      continue;
+    }
+
     const attempts = row.attempts + 1;
     let result: Awaited<ReturnType<OutboxSend>>;
     try {
@@ -285,7 +350,7 @@ export async function drainOutbox(
       continue;
     }
     const detail = `${result.status ?? "network"} ${result.message}`.trim();
-    if (isPermanentFailure(result.status)) {
+    if (isPermanentFailure(result.status, result.message, row.kind)) {
       // Do not drop: keep the row as 'dead' for inspection and alert.
       log(
         `[usage-outbox] DEAD row id=${row.id} kind=${row.kind} reservation=${res ?? "-"} — hub rejected permanently: ${detail}`,
@@ -295,8 +360,13 @@ export async function drainOutbox(
       continue;
     }
     const next = new Date(now.getTime() + backoffSeconds(attempts) * 1000);
+    const hint = !isConfigFailure(result.status)
+      ? ""
+      : result.status === 401 || result.status === 403
+        ? " — hub refused our credentials (config, not the row): check CHALYBOBS_ADMIN_TOKEN / CHALYB_ADMIN_TOKEN"
+        : " — hub refused the request (config, not the row): check CHALYB_BASE_URL, the engine registration and the tenant's Chalyb user";
     log(
-      `[usage-outbox] delivery failed id=${row.id} kind=${row.kind} attempt=${attempts} — retry at ${next.toISOString()}: ${detail}`,
+      `[usage-outbox] delivery failed id=${row.id} kind=${row.kind} attempt=${attempts} — retry at ${next.toISOString()}: ${detail}${hint}`,
     );
     await store.markRetry(row.id, attempts, next, detail);
     if (row.kind === "usage" && res) blocked.add(res);
