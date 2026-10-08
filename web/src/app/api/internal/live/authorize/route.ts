@@ -13,7 +13,8 @@
  *   200:   { stream_id, tenant_id, recording_path }
  *   401/403: rejected → relay ignores the push (ages out)
  *     403 { error: "usage_refused", reason }      hub said no (caps/balance)
- *     403 { error: "usage_unavailable", reason }  hub unreachable → fail closed
+ *     403 { error: "usage_unavailable", reason }  hub unreachable (hub_unreachable)
+ *         or refusing our credentials/config (hub_rejected) → fail closed
  */
 
 import { after, NextRequest, NextResponse } from "next/server";
