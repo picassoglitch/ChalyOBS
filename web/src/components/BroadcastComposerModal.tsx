@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import {
   BROADCAST_FIELDS,
-  BroadcastFieldId,
   BroadcastFieldMeta,
   BroadcastMeta,
   DestinationConfig,
@@ -66,6 +65,7 @@ export function BroadcastComposerModal({
           <h2 className="text-lg font-bold flex-1">Actualizar títulos</h2>
           <button
             onClick={onClose}
+            aria-label="Cerrar"
             className="text-text-tertiary hover:text-text-primary text-xl leading-none"
           >
             ×

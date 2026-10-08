@@ -53,7 +53,7 @@ interface Props {
 function connectNoticeText(notice: { kind: "ok" | "error"; code: string }): string {
   if (notice.kind === "ok") {
     const name = platformDisplayName(notice.code);
-    return `${name} conectado — ingest URL y stream key se configuraron automáticamente.`;
+    return `${name} conectado — la URL del servidor y la clave de transmisión se configuraron solas.`;
   }
   const sep = notice.code.indexOf("_");
   const name = platformDisplayName(sep > 0 ? notice.code.slice(0, sep) : "");
@@ -62,7 +62,7 @@ function connectNoticeText(notice: { kind: "ok" | "error"; code: string }): stri
     case "denied":
       return `Cancelaste la conexión con ${name}.`;
     case "not_configured":
-      return `La conexión con ${name} no está configurada en este deploy (faltan sus credenciales OAuth).`;
+      return `La conexión con ${name} todavía no está disponible aquí (faltan sus credenciales OAuth).`;
     case "state_mismatch":
       return "La sesión de conexión expiró. Inténtalo de nuevo.";
     default:
@@ -199,7 +199,15 @@ export function DashboardClient({
           // No navigation — just toggles the connection state.
           const next = !clipsEnabled;
           setClipsEnabled(next);
-          startTransition(() => setClipsEnabledAction(next));
+          startTransition(async () => {
+            try {
+              await setClipsEnabledAction(next);
+            } catch {
+              // Not saved (session expired / not allowed) — don't leave the
+              // switch showing a state the server doesn't have.
+              setClipsEnabled(!next);
+            }
+          });
         }}
       />
 

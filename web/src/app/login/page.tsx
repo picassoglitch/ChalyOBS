@@ -24,7 +24,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold mb-2">Entrar a ChalyOBS</h1>
           <p className="text-text-tertiary text-sm">
-            Autenticate desde Chalyb.
+            Inicia sesión desde Chalyb.
           </p>
         </div>
 
@@ -33,8 +33,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <strong className="text-warn block mb-1">
               Servicio no configurado.
             </strong>
-            Faltan variables en Vercel. ChalyOBS no puede iniciar sesión hasta
-            que estén definidas:
+            Faltan variables de entorno en el servidor. ChalyOBS no puede
+            iniciar sesión hasta que estén definidas:
             <ul className="mt-1 ml-4 list-disc font-mono text-[11px]">
               {missing.map((v) => (
                 <li key={v}>{v}</li>
@@ -54,8 +54,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {error && (
           <div className="mt-4 text-xs text-bad bg-bad/10 border border-bad/30 rounded-md p-2 break-words">
-            <strong>SSO error:</strong>{" "}
-            <span className="font-mono">{decodeURIComponent(error)}</span>
+            <strong>No pudimos iniciar tu sesión.</strong>{" "}
+            {ssoErrorText(error)}{" "}
+            {/* Raw reason kept for operators; searchParams arrive decoded —
+                decoding again threw URIError on a stray "%". */}
+            <span className="font-mono opacity-70">({error})</span>
           </div>
         )}
 
@@ -65,6 +68,22 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       </div>
     </div>
   );
+}
+
+/** Spanish copy for the /auth/sso failure reasons (SsoTokenError messages
+ *  and the route's own codes). Unknown reasons fall back to a generic line. */
+function ssoErrorText(reason: string): string {
+  switch (reason) {
+    case "token expired":
+      return "El enlace de acceso venció. Vuelve a entrar desde Chalyb.";
+    case "missing_token":
+    case "empty token":
+      return "Falta el enlace de acceso. Entra desde Chalyb.";
+    case "service_not_configured":
+      return "El servicio no está configurado todavía.";
+    default:
+      return "El enlace de acceso no es válido. Vuelve a entrar desde Chalyb.";
+  }
 }
 
 function buildChalybLoginUrl(
