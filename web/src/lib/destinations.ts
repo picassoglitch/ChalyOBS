@@ -283,7 +283,8 @@ export const PLATFORM_FIELD_SUPPORT: Record<PlatformId, BroadcastFieldId[]> = {
     "visibility",
     "madeForKids",
   ],
-  kick: ["title", "category", "mature"],
+  // Kick's pushMeta sends stream_title, category_id and custom_tags.
+  kick: ["title", "category", "tags", "mature"],
   facebook: ["title", "description", "mature"],
   tiktok: ["title"],
   instagram: [],

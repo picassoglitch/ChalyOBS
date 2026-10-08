@@ -66,7 +66,7 @@ export function ChannelsPanel(props: ChannelsPanelProps) {
       <div className="flex p-1 m-3 mb-0 rounded-lg bg-surface-elevated border border-border">
         <TabButton
           icon={<BroadcastIcon className="w-4 h-4" />}
-          label="Channels"
+          label="Canales"
           active={tab === "channels"}
           onClick={() => setTab("channels")}
         />
@@ -187,7 +187,7 @@ function ChannelsTab({
   return (
     <div className="flex flex-col flex-1">
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <h3 className="text-sm font-bold">Your Channels</h3>
+        <h3 className="text-sm font-bold">Tus canales</h3>
       </div>
 
       <div className="grid grid-cols-2 gap-2 px-4 relative">
@@ -197,7 +197,7 @@ function ChannelsTab({
           className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-border bg-surface-elevated text-xs font-semibold hover:bg-surface-high transition disabled:opacity-50"
         >
           <PlusIcon className="w-4 h-4" />
-          Add Channel
+          Agregar canal
         </button>
         <button
           onClick={onUpdateTitles}
@@ -205,7 +205,7 @@ function ChannelsTab({
           className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-border bg-surface-elevated text-xs font-semibold hover:bg-surface-high transition disabled:opacity-50"
         >
           <EditIcon className="w-3.5 h-3.5" />
-          Update Titles
+          Actualizar títulos
         </button>
 
         {picking && available.length > 0 && (
@@ -248,14 +248,14 @@ function ChannelsTab({
 
       <div className="flex items-center justify-between px-4 mt-3 mb-2">
         <span className="text-xs text-text-tertiary">
-          {activeCount} of {total} active
+          {activeCount} de {total} {total === 1 ? "activo" : "activos"}
         </span>
       </div>
 
       <ul className="px-3 pb-3 flex-1 overflow-y-auto">
         {destinations.length === 0 ? (
           <li className="px-3 py-8 text-center text-xs text-text-tertiary">
-            Sin canales aún. Pulsa <b className="text-text-secondary">Add Channel</b> para conectar tu primera plataforma.
+            Sin canales aún. Toca <b className="text-text-secondary">Agregar canal</b> para conectar tu primera plataforma.
           </li>
         ) : (
           destinations.map((d) => (
@@ -338,7 +338,7 @@ function ChannelRow({
                 ? "Auto-conectado"
                 : configured
                   ? "Configurado"
-                  : "Falta stream key"}
+                  : "Falta la clave de transmisión"}
             </span>
           </div>
         </div>
@@ -357,7 +357,7 @@ function ChannelRow({
         <button
           onClick={onRemove}
           disabled={busy}
-          className="p-1 text-text-tertiary hover:text-bad opacity-0 group-hover:opacity-100 transition disabled:opacity-30"
+          className="p-1 text-text-tertiary hover:text-bad opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition disabled:opacity-30"
           aria-label="Quitar canal"
           title="Quitar"
         >
@@ -369,7 +369,7 @@ function ChannelRow({
           disabled={busy}
           className="text-[11px] text-text-secondary hover:text-text-primary font-medium px-1 disabled:opacity-40"
         >
-          Edit
+          Editar
         </button>
 
         <Toggle
@@ -381,7 +381,7 @@ function ChannelRow({
           title={
             configured
               ? undefined
-              : "Configura el stream key antes de activar"
+              : "Agrega la clave de transmisión antes de activar"
           }
         />
       </div>
@@ -411,17 +411,17 @@ function StatusBanner({
       <div className="mt-1 mx-2 px-3 py-2 rounded-md bg-bad/10 border border-bad/40 flex items-center gap-2">
         <AlertIcon className="w-3.5 h-3.5 text-bad shrink-0" />
         <span className="text-[11px] text-text-secondary flex-1">
-          Account access expired.{" "}
+          Se venció el acceso a tu cuenta.{" "}
           {connectPath ? (
             <button
               type="button"
               onClick={() => onConnect(connectPath)}
               className="text-text-primary font-semibold underline"
             >
-              Reconnect
+              Volver a conectar
             </button>
           ) : (
-            <span className="text-text-primary font-semibold">Reconnect</span>
+            <span className="text-text-primary font-semibold">Vuelve a conectarla.</span>
           )}
         </span>
       </div>
@@ -432,8 +432,8 @@ function StatusBanner({
       <div className="mt-1 mx-2 px-3 py-2 rounded-md bg-bad/10 border border-bad/40 flex items-center gap-2">
         <AlertIcon className="w-3.5 h-3.5 text-bad shrink-0" />
         <span className="text-[11px] text-text-secondary flex-1">
-          {status.platformName} hasn&apos;t approved your account.{" "}
-          <span className="text-text-primary font-semibold">Apply</span>
+          {status.platformName} todavía no aprueba tu cuenta.{" "}
+          <span className="text-text-primary font-semibold">Solicita acceso en {status.platformName}.</span>
         </span>
       </div>
     );

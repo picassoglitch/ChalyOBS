@@ -37,7 +37,7 @@ export function Header({
       <Link
         href="/dashboard"
         className="w-10 h-10 rounded-lg bg-surface border border-border flex items-center justify-center text-text-secondary hover:text-text-primary transition"
-        aria-label="Home"
+        aria-label="Inicio"
       >
         <HomeIcon className="w-5 h-5" />
       </Link>
@@ -84,20 +84,23 @@ export function Header({
           rel="noopener noreferrer"
           className="px-3.5 py-1.5 text-xs font-semibold rounded-md bg-accent-soft text-accent border border-accent/40 hover:bg-accent/20 transition"
         >
-          Upgrade
+          Mejorar plan
         </a>
       )}
 
       {/* ChalyClip connection switch — when ON, streams flow to ChalyClip and
-          clips are generated. Only full-access users can flip it on. */}
+          clips are generated. Only full-access users can flip it on. The
+          user-facing name follows the hub: the tool is "Clips" and the
+          hub's own live room labels this same switch "Hacer clips al
+          terminar" (liveTool.room.clipsAfter). */}
       <div
         className="flex items-center gap-2 px-2"
         title={
           clipsAvailable
             ? clipsEnabled
-              ? "Conectado a ChalyClip — los streams generan clips"
-              : "Conectar con ChalyClip para generar clips"
-            : "Requiere Full Access"
+              ? "Encendido: al terminar cada transmisión, la grabación se envía a Clips y se hacen tus clips"
+              : "Apagado: tus transmisiones no se envían a Clips"
+            : "Requiere el plan VIP"
         }
       >
         <ClipsIcon
@@ -108,6 +111,7 @@ export function Header({
           onClick={onToggleClips}
           disabled={!clipsAvailable}
           aria-pressed={!!clipsEnabled}
+          aria-label="Hacer clips al terminar"
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition disabled:opacity-40 disabled:cursor-not-allowed ${
             clipsEnabled && clipsAvailable ? "bg-accent" : "bg-surface-high"
           }`}
@@ -119,14 +123,14 @@ export function Header({
           />
         </button>
         <span className="text-xs font-medium text-text-secondary hidden sm:inline">
-          ChalyClip
+          Clips al terminar
         </span>
       </div>
 
       {isLive && (
         <span className="ml-1 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-bad/15 text-bad text-[10px] font-bold tracking-wider">
           <span className="w-1.5 h-1.5 rounded-full bg-bad animate-pulse" />
-          LIVE
+          EN VIVO
         </span>
       )}
     </header>
