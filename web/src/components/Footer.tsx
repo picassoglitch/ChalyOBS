@@ -9,13 +9,13 @@ export function Footer() {
         className="flex items-center gap-1.5 hover:text-text-primary transition"
       >
         <SettingsIcon className="w-3.5 h-3.5" />
-        Settings
+        Ajustes
       </Link>
       <Link
         href="/analytics"
         className="hover:text-text-primary transition"
       >
-        Analytics
+        Estadísticas
       </Link>
     </footer>
   );

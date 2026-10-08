@@ -36,8 +36,8 @@ export default async function DashboardPage({
         <div className="max-w-md">
           <h1 className="text-xl font-bold mb-2">Base de datos no configurada</h1>
           <p className="text-text-tertiary text-sm">
-            Falta la URL y la secret key de Supabase en Vercel (Project →
-            Settings → Environment Variables). Se aceptan los mismos nombres
+            Faltan la URL y la secret key de Supabase en las variables de
+            entorno del servidor. Se aceptan los mismos nombres
             que en los otros engines:{" "}
             <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code> o{" "}
             <code className="font-mono">SUPABASE_URL</code> y{" "}
