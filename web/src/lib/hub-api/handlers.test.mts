@@ -237,6 +237,12 @@ test("GET state: persists the tier only when it changed", async () => {
   assert.deepEqual(calls.find((c) => c.fn === "saveTenantTier")?.args, ["tenant-A", "vip"]);
 });
 
+test("GET state: a token without a tier clears a stored full-access tier", async () => {
+  const { deps, calls } = fakeDeps({ getStoredTier: async () => "vip" });
+  await call(deps, "GET", "state", { auth: bearer({ tier: undefined }) });
+  assert.deepEqual(calls.find((c) => c.fn === "saveTenantTier")?.args, ["tenant-A", null]);
+});
+
 test("503 when Supabase isn't configured", async () => {
   const { deps } = fakeDeps({ dbConfigured: false });
   assert.deepEqual((await call(deps, "GET", "state")).json, { error: "service_not_configured" });

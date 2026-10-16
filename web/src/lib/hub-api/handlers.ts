@@ -114,12 +114,14 @@ function isConfigured(d: { ingestUrl: string; streamKey: string }): boolean {
 }
 
 /** Persist the tier the hub vouched for, but only when it changed — relay
- *  callbacks (no cookie) re-check it before forwarding to ChalyClip. */
+ *  callbacks (no cookie) re-check it before forwarding to ChalyClip. A token
+ *  without a tier stores null, exactly like /auth/sso: a downgrade must never
+ *  leave a stale full-access tier behind. */
 async function syncTier(deps: HubApiDeps, c: HubClaims): Promise<void> {
-  if (!c.tier) return;
+  const tier = c.tier ?? null;
   try {
     const stored = await deps.getStoredTier(c.tenant_id);
-    if (stored !== c.tier) await deps.saveTenantTier(c.tenant_id, c.tier);
+    if (stored !== tier) await deps.saveTenantTier(c.tenant_id, tier);
   } catch {
     // best-effort, like the SSO path
   }
