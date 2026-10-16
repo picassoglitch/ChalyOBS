@@ -40,6 +40,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const reason = e instanceof SsoTokenError ? e.message : "verify_failed";
     return redirectToLogin(origin, reason);
   }
+  // Hub API / preview tokens (they carry an `aud`) are scoped credentials,
+  // never a login: a preview URL must not turn into a 30-day session.
+  if (claims.aud !== undefined) {
+    return redirectToLogin(origin, "wrong_token_type");
+  }
 
   // Persist the tier server-side too: relay callbacks (live/started|ended)
   // carry no cookie but must re-check it before forwarding to ChalyClip.

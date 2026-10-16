@@ -665,3 +665,37 @@ export async function getFanoutDestinations(
       };
     });
 }
+
+/** The tier last persisted for the tenant (null when none / no row). Lets
+ *  the hub API skip the write when the tier didn't change. */
+export async function getStoredTier(tenantId: string): Promise<string | null> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_sessions")
+    .select("tier")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  return (data?.tier as string | null | undefined) ?? null;
+}
+
+/** The tenant's past streams (ones the relay reported started), newest
+ *  first — "Mis transmisiones" in the hub. */
+export async function listStreams(
+  tenantId: string,
+  limit: number,
+): Promise<{ streamId: string; startedAt: string; endedAt: string | null; durationS: number | null }[]> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_streams")
+    .select("stream_id, started_at, ended_at, duration_s")
+    .eq("tenant_id", tenantId)
+    .not("started_at", "is", null)
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((r) => ({
+    streamId: r.stream_id as string,
+    startedAt: r.started_at as string,
+    endedAt: (r.ended_at as string | null) ?? null,
+    durationS: (r.duration_s as number | null) ?? null,
+  }));
+}

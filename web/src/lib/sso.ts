@@ -13,7 +13,7 @@
  * both ends, no header/algo agility needed. One HMAC each side, done.
  */
 
-import { b64urlDecode, b64urlDecodeString } from "./b64url";
+import { b64urlDecode, b64urlDecodeString } from "./b64url.ts";
 
 export interface SsoPayload {
   user_id: string;
@@ -23,6 +23,9 @@ export interface SsoPayload {
   tier?: string;
   /** Unix seconds. */
   exp: number;
+  /** Set only on the hub's server-to-server tokens (hub-api/auth.ts). A
+   *  launch token has none — /auth/sso refuses any token that carries one. */
+  aud?: string;
 }
 
 export class SsoTokenError extends Error {
@@ -117,6 +120,10 @@ function parsePayload(raw: unknown): SsoPayload {
   };
   if (typeof obj.tier === "string" && obj.tier.length > 0) {
     out.tier = obj.tier;
+  }
+  if (obj.aud !== undefined) {
+    if (typeof obj.aud !== "string") throw new SsoTokenError("bad aud");
+    out.aud = obj.aud;
   }
   return out;
 }
