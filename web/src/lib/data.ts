@@ -60,7 +60,9 @@ export async function getOrCreateSession(
     return {
       title,
       isLive: data.is_live as boolean,
-      clipsEnabled: (data.clips_enabled as boolean | null) ?? true,
+      // A row without a value never forwarded to Clips (getClipsEnabled and
+      // the relay gate read null as off), so it reads as off here too.
+      clipsEnabled: (data.clips_enabled as boolean | null) ?? false,
       streamKey: data.stream_key as string,
       broadcastMeta: normalizeBroadcastMeta(data.broadcast_meta, title),
     };
@@ -69,7 +71,9 @@ export async function getOrCreateSession(
   const fresh: TenantSession = {
     title: DEFAULT_TITLE,
     isLive: false,
-    clipsEnabled: true,
+    // Sending streams to Clips is opt-in (Aldo, 2026-10-15): new tenants
+    // start with it off. Existing rows keep whatever they have.
+    clipsEnabled: false,
     streamKey: freshStreamKey(),
     broadcastMeta: normalizeBroadcastMeta(null, DEFAULT_TITLE),
   };
