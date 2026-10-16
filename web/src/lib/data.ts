@@ -60,7 +60,9 @@ export async function getOrCreateSession(
     return {
       title,
       isLive: data.is_live as boolean,
-      clipsEnabled: (data.clips_enabled as boolean | null) ?? true,
+      // A row without a value never forwarded to Clips (getClipsEnabled and
+      // the relay gate read null as off), so it reads as off here too.
+      clipsEnabled: (data.clips_enabled as boolean | null) ?? false,
       streamKey: data.stream_key as string,
       broadcastMeta: normalizeBroadcastMeta(data.broadcast_meta, title),
     };
@@ -69,7 +71,9 @@ export async function getOrCreateSession(
   const fresh: TenantSession = {
     title: DEFAULT_TITLE,
     isLive: false,
-    clipsEnabled: true,
+    // Sending streams to Clips is opt-in (Aldo, 2026-10-15): new tenants
+    // start with it off. Existing rows keep whatever they have.
+    clipsEnabled: false,
     streamKey: freshStreamKey(),
     broadcastMeta: normalizeBroadcastMeta(null, DEFAULT_TITLE),
   };
@@ -664,4 +668,38 @@ export async function getFanoutDestinations(
         push_url: pushUrl,
       };
     });
+}
+
+/** The tier last persisted for the tenant (null when none / no row). Lets
+ *  the hub API skip the write when the tier didn't change. */
+export async function getStoredTier(tenantId: string): Promise<string | null> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_sessions")
+    .select("tier")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  return (data?.tier as string | null | undefined) ?? null;
+}
+
+/** The tenant's past streams (ones the relay reported started), newest
+ *  first — "Mis transmisiones" in the hub. */
+export async function listStreams(
+  tenantId: string,
+  limit: number,
+): Promise<{ streamId: string; startedAt: string; endedAt: string | null; durationS: number | null }[]> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_streams")
+    .select("stream_id, started_at, ended_at, duration_s")
+    .eq("tenant_id", tenantId)
+    .not("started_at", "is", null)
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((r) => ({
+    streamId: r.stream_id as string,
+    startedAt: r.started_at as string,
+    endedAt: (r.ended_at as string | null) ?? null,
+    durationS: (r.duration_s as number | null) ?? null,
+  }));
 }
