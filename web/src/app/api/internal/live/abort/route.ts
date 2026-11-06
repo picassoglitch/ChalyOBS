@@ -19,7 +19,6 @@ import { checkRelayBearer } from "@/lib/relay-auth";
 import {
   abortUnstartedStream,
   findStreamByAttemptKey,
-  undoAbort,
   getTenantByStreamKey,
   tenantFromStreamId,
 } from "@/lib/data";
@@ -77,8 +76,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
       ]);
       if (!queued) {
-        // Undo, so the relay's retry finds the stream unaborted and releases it then.
-        await undoAbort(tenantId, streamId);
+        // The stream stays aborted; the relay's retry re-queues the (deduped) release.
         return NextResponse.json({ error: "release_not_queued" }, { status: 503 });
       }
       await drainUsageOutbox();

@@ -38,9 +38,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: 204 });
   }
 
+  // An aborted or ended stream can't start: no live flag, no ChalyClip
+  // hand-off; 409 tells the relay to drop the publish.
+  let started: boolean;
+  try {
+    started = await markStreamStarted(tenantId, streamId);
+  } catch (e) {
+    console.error(`[relay] started failed for ${streamId}: ${e instanceof Error ? e.message : String(e)}`);
+    return NextResponse.json({ error: "start_failed" }, { status: 503 });
+  }
+  if (!started) return NextResponse.json({ error: "stream_not_startable" }, { status: 409 });
   await markSessionLive(tenantId, streamId);
-  // Duration fallback for metering when live/ended carries no duration_s.
-  await markStreamStarted(tenantId, streamId);
 
   // Hand off to ChalyClip's pipeline when the connection is on. Forward the
   // operator's broadcast title so ChalyClip shows the real stream name
