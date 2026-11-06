@@ -65,16 +65,19 @@ export async function chalybclipStarted(args: {
 }
 
 /** Tell ChalyClip the stream ended → triggers its auto-clip pipeline. */
+/** Forward the end to ChalyClip. Returns false when it should be retried
+ *  (network error or 5xx); a 2xx, a 4xx (won't change on retry) or an
+ *  unconfigured ChalyClip count as done. */
 export async function chalybclipEnded(args: {
   streamId: string;
   tenantId: string;
   durationS?: number;
-}): Promise<void> {
+}): Promise<boolean> {
   const b = base();
   const s = secret();
-  if (!b || !s) return;
+  if (!b || !s) return true;
   try {
-    await fetch(`${b}/api/internal/chalybobs/ended`, {
+    const res = await fetch(`${b}/api/internal/chalybobs/ended`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${s}`,
@@ -86,8 +89,16 @@ export async function chalybclipEnded(args: {
         ...(args.durationS != null ? { duration_s: args.durationS } : {}),
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
     });
-  } catch {
-    // Best-effort.
+    if (res.status >= 500) {
+      console.error(`[chalybclip] ended for ${args.streamId} got ${res.status}; will retry`);
+      return false;
+    }
+    if (!res.ok) console.error(`[chalybclip] ended for ${args.streamId} refused ${res.status}; not retrying`);
+    return true;
+  } catch (e) {
+    console.error(`[chalybclip] ended for ${args.streamId} unreachable; will retry: ${e instanceof Error ? e.message : String(e)}`);
+    return false;
   }
 }

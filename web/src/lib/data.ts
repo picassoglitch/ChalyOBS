@@ -162,6 +162,29 @@ export async function updateSession(
   await db.from("chalybobs_sessions").update(row).eq("tenant_id", tenantId);
 }
 
+/** live/started: the tenant is live with THIS stream. */
+export async function markSessionLive(tenantId: string, streamId: string): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("chalybobs_sessions")
+    .update({ is_live: true, live_stream_id: streamId, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId);
+  if (error) console.error(`[sessions] mark live failed for ${streamId}: ${error.message}`);
+}
+
+/** live/ended: offline only while the session still names this stream (or
+ *  went live before live_stream_id existed), so a late or retried 'ended'
+ *  for an older stream can't take a newer one offline. */
+export async function markSessionOfflineIfCurrent(tenantId: string, streamId: string): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("chalybobs_sessions")
+    .update({ is_live: false, live_stream_id: null, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .or(`live_stream_id.eq.${streamId},live_stream_id.is.null`);
+  if (error) console.error(`[sessions] mark offline failed for ${streamId}: ${error.message}`);
+}
+
 /** Rename the broadcast from the header: the session title AND the
  *  composer's broadcast_meta.title, so "Actualizar títulos" opens with the
  *  same title after a reload (normalizeBroadcastMeta prefers the blob's). */
@@ -757,6 +780,30 @@ export async function dropPendingStream(tenantId: string, streamId: string): Pro
     .eq("stream_id", streamId)
     .eq("authorizing", true);
   if (error) console.error(`[streams] could not drop pending ${streamId}: ${error.message}`);
+/** Take the one ChalyClip 'ended' hand-off for this stream. False when it
+ *  was already handed off (a relay retry). Throws on a failed write. */
+export async function claimClipForward(tenantId: string, streamId: string): Promise<boolean> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .update({ clip_forwarded_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .is("clip_forwarded_at", null)
+    .select("stream_id");
+  if (error) throw new Error(`clip forward claim failed for ${streamId}: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+
+/** The hand-off failed: let the next live/ended retry try again. */
+export async function releaseClipForward(tenantId: string, streamId: string): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("chalybobs_streams")
+    .update({ clip_forwarded_at: null })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId);
+  if (error) console.error(`[streams] could not release clip forward ${streamId}: ${error.message}`);
 }
 
 /** First live/started wins (duration fallback when the relay sends no

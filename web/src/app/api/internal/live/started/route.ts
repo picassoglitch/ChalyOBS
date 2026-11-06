@@ -15,9 +15,9 @@ import { checkRelayBearer } from "@/lib/relay-auth";
 import {
   getClipsForwardingAllowed,
   getOrCreateSession,
+  markSessionLive,
   markStreamStarted,
   tenantFromStreamId,
-  updateSession,
 } from "@/lib/data";
 import { chalybclipStarted } from "@/lib/chalybclip";
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: 204 });
   }
 
-  await updateSession(tenantId, { isLive: true });
+  await markSessionLive(tenantId, streamId);
   // Duration fallback for metering when live/ended carries no duration_s.
   await markStreamStarted(tenantId, streamId);
 
