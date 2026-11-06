@@ -1020,7 +1020,9 @@ export async function findStreamByAttemptKey(
 }
 
 export type AbortResult =
-  | { kind: "aborted"; reservationId: string | null } // now or already: (re)queue the release
+  // now or already: (re)queue the release; admitUnknown = the admit answer was
+  // lost, so the hub may hold a reservation we don't know the id of.
+  | { kind: "aborted"; reservationId: string | null; admitUnknown: boolean }
   | { kind: "nothing" } // no row, or ended without starting
   | { kind: "started" } // can't abort: it went live
   | { kind: "authorizing" }; // admission still running: try again
@@ -1045,20 +1047,24 @@ export async function abortUnstartedStream(
     .is("ended_at", null)
     .is("aborted_at", null)
     .eq("authorizing", false)
-    .select("reservation_id");
+    .select("reservation_id, authorize_error");
   if (error) throw new Error(`abort failed for ${streamId}: ${error.message}`);
+  const aborted = (r: { reservation_id?: unknown; authorize_error?: unknown }) => {
+    const reservationId = (r.reservation_id as string | null) ?? null;
+    return { kind: "aborted" as const, reservationId, admitUnknown: !reservationId && r.authorize_error != null };
+  };
   const won = (data ?? [])[0];
-  if (won) return { kind: "aborted", reservationId: (won.reservation_id as string | null) ?? null };
+  if (won) return aborted(won);
 
   const { data: row, error: readError } = await db
     .from("chalybobs_streams")
-    .select("started_at, aborted_at, authorizing, reservation_id")
+    .select("started_at, aborted_at, authorizing, reservation_id, authorize_error")
     .eq("tenant_id", tenantId)
     .eq("stream_id", streamId)
     .maybeSingle();
   if (readError) throw new Error(`abort read failed for ${streamId}: ${readError.message}`);
   if (!row) return { kind: "nothing" };
-  if (row.aborted_at) return { kind: "aborted", reservationId: (row.reservation_id as string | null) ?? null };
+  if (row.aborted_at) return aborted(row);
   if (row.started_at) return { kind: "started" };
   if (row.authorizing) return { kind: "authorizing" };
   return { kind: "nothing" }; // ended without starting, or admission failed

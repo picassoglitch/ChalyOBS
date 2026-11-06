@@ -24,6 +24,7 @@ import {
 } from "@/lib/data";
 import { parseAttemptKey } from "@/lib/usage/metering";
 import { drainUsageOutbox, enqueueOutbox } from "@/lib/usage/outbox";
+import { resolveLostHold } from "@/lib/usage/stream";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!checkRelayBearer(request.headers.get("authorization"))) {
@@ -65,14 +66,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (result.kind === "authorizing") {
       return NextResponse.json({ error: "authorize_in_progress" }, { status: 503 });
     }
-    if (result.kind === "aborted" && result.reservationId) {
+    let reservationId = result.kind === "aborted" ? result.reservationId : null;
+    if (result.kind === "aborted" && !reservationId && result.admitUnknown) {
+      // The admit answer was lost: find the hold by job id (idempotent admit).
+      reservationId = await resolveLostHold(tenantId, streamId);
+    }
+    if (result.kind === "aborted" && reservationId) {
       const queued = await enqueueOutbox([
         {
           tenantId,
           kind: "settle",
-          dedupeKey: `settle:${result.reservationId}:cancelled`,
-          reservationId: result.reservationId,
-          payload: { reservation_id: result.reservationId, outcome: "cancelled" },
+          dedupeKey: `settle:${reservationId}:cancelled`,
+          reservationId,
+          payload: { reservation_id: reservationId, outcome: "cancelled" },
         },
       ]);
       if (!queued) {
@@ -80,7 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         return NextResponse.json({ error: "release_not_queued" }, { status: 503 });
       }
       await drainUsageOutbox();
-      console.warn(`[usage] aborted never-started stream ${streamId}; hold ${result.reservationId} released`);
+      console.warn(`[usage] aborted never-started stream ${streamId}; hold ${reservationId} released`);
     }
     return new NextResponse(null, { status: 204 });
   } catch (e) {

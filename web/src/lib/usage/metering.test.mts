@@ -4,6 +4,7 @@ import {
   backoffSeconds,
   buildStreamAdmitRequest,
   billedDestinations,
+  isAmbiguousAdmission,
   parseAttemptKey,
   lockedFanout,
   buildStreamMinutesEvent,
@@ -489,4 +490,12 @@ test("attempt key: relay token accepted, anything else means no reuse", () => {
   assert.equal(parseAttemptKey("x".repeat(129)), null);
   assert.equal(parseAttemptKey("bad key with spaces"), null);
   assert.equal(parseAttemptKey(42), null);
+});
+
+test("ambiguous admission: only a lost/5xx hub answer, never a definite refusal", () => {
+  assert.equal(isAmbiguousAdmission(decideAdmission({ ok: false, message: "fetch failed" })), true);
+  assert.equal(isAmbiguousAdmission(decideAdmission({ ok: false, status: 503, message: "down" })), true);
+  assert.equal(isAmbiguousAdmission(decideAdmission({ ok: false, status: 409, message: '{"reason":"streams_cap"}' })), false);
+  assert.equal(isAmbiguousAdmission(decideAdmission({ ok: false, status: 401, message: "{}" })), false);
+  assert.equal(isAmbiguousAdmission(decideAdmission("misconfigured")), false);
 });
