@@ -5,7 +5,11 @@
 -- claims it atomically (insert ... on conflict do nothing) and admits; a
 -- retry with the same key takes that stream over once (reused_at, set by a
 -- conditional update). A different key is a different publish: new stream,
--- new admission under the caps. authorizing = row claimed, admission running.
+-- new admission under the caps. authorizing = row claimed, admission running
+-- (admitted_at is the claim time; a claim older than the lease is stale and
+-- a retry may take it over). authorize_error = the admission threw; a retry
+-- may take the row over and admit again with the SAME stream_id (the hub
+-- admit is idempotent per external_job_id, so no second hold).
 --
 -- Additive: nullable columns + a NOT NULL boolean with a constant default
 -- (metadata-only on PG 11+). The unique constraint builds an index on
@@ -17,7 +21,8 @@
 alter table public.chalybobs_streams
   add column if not exists attempt_key text,
   add column if not exists authorizing boolean not null default false,
-  add column if not exists reused_at timestamptz;
+  add column if not exists reused_at timestamptz,
+  add column if not exists authorize_error text;
 
 do $$
 begin
