@@ -45,7 +45,7 @@ export async function verifySsoToken(
   const { secret, nowSeconds, leewaySeconds = 0 } = options;
   if (!secret) {
     throw new SsoTokenError(
-      "CHALYBOBS_SSO_SECRET not configured on this ChalyOBS instance",
+      "CHALYBOBS_SSO_SECRET not configured on this En vivo instance",
     );
   }
   if (!token) throw new SsoTokenError("empty token");
