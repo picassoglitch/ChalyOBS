@@ -1,4 +1,5 @@
 import "server-only";
+import { classifyClipEnded, fetchErrorCode, type ClipEndedOutcome } from "./clip-forward";
 
 /**
  * ChalyClip handoff — when "Get Clips" is on, ChalyOBS forwards the stream's
@@ -65,17 +66,19 @@ export async function chalybclipStarted(args: {
 }
 
 /** Tell ChalyClip the stream ended → triggers its auto-clip pipeline. */
-/** Forward the end to ChalyClip. Returns false when it should be retried
- *  (network error or 5xx); a 2xx, a 4xx (won't change on retry) or an
- *  unconfigured ChalyClip count as done. */
+/** Forward the end to ChalyClip. "retry" only when the call certainly never
+ *  reached it; a 5xx, timeout or lost response is "unknown" (ChalyClip may
+ *  already be clipping, and a repeat 'ended' makes it clip again). */
 export async function chalybclipEnded(args: {
   streamId: string;
   tenantId: string;
   durationS?: number;
-}): Promise<boolean> {
+}): Promise<ClipEndedOutcome> {
   const b = base();
   const s = secret();
-  if (!b || !s) return true;
+  if (!b || !s) return "done";
+  let outcome: ClipEndedOutcome;
+  let detail: string;
   try {
     const res = await fetch(`${b}/api/internal/chalybobs/ended`, {
       method: "POST",
@@ -91,14 +94,18 @@ export async function chalybclipEnded(args: {
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
-    if (res.status >= 500) {
-      console.error(`[chalybclip] ended for ${args.streamId} got ${res.status}; will retry`);
-      return false;
-    }
-    if (!res.ok) console.error(`[chalybclip] ended for ${args.streamId} refused ${res.status}; not retrying`);
-    return true;
+    outcome = classifyClipEnded({ status: res.status });
+    detail = String(res.status);
   } catch (e) {
-    console.error(`[chalybclip] ended for ${args.streamId} unreachable; will retry: ${e instanceof Error ? e.message : String(e)}`);
-    return false;
+    const code = fetchErrorCode(e);
+    outcome = classifyClipEnded({ errorCode: code });
+    detail = `${code ?? (e instanceof Error ? e.name : "error")}`;
   }
+  if (outcome === "retry") console.error(`[chalybclip] ended for ${args.streamId} not delivered (${detail}); will retry`);
+  if (outcome === "unknown") {
+    console.error(
+      `[chalybclip] ended for ${args.streamId} OUTCOME UNKNOWN (${detail}); not retrying — check ChalyClip for this stream`,
+    );
+  }
+  return outcome;
 }

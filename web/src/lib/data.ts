@@ -780,6 +780,8 @@ export async function dropPendingStream(tenantId: string, streamId: string): Pro
     .eq("stream_id", streamId)
     .eq("authorizing", true);
   if (error) console.error(`[streams] could not drop pending ${streamId}: ${error.message}`);
+}
+
 /** Take the one ChalyClip 'ended' hand-off for this stream. False when it
  *  was already handed off (a relay retry). Throws on a failed write. */
 export async function claimClipForward(tenantId: string, streamId: string): Promise<boolean> {
