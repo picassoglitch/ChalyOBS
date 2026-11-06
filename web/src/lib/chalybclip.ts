@@ -1,4 +1,5 @@
 import "server-only";
+import { classifyClipEnded, type ClipEndedOutcome } from "./clip-forward";
 
 /**
  * ChalyClip handoff — when "Get Clips" is on, ChalyOBS forwards the stream's
@@ -65,16 +66,21 @@ export async function chalybclipStarted(args: {
 }
 
 /** Tell ChalyClip the stream ended → triggers its auto-clip pipeline. */
+/** Forward the end to ChalyClip. "retry" when it may not have landed (5xx,
+ *  timeout, reset, refused); ChalyClip's 'ended' is idempotent per stream,
+ *  so a repeat never clips twice. */
 export async function chalybclipEnded(args: {
   streamId: string;
   tenantId: string;
   durationS?: number;
-}): Promise<void> {
+}): Promise<ClipEndedOutcome> {
   const b = base();
   const s = secret();
-  if (!b || !s) return;
+  if (!b || !s) return "done";
+  let outcome: ClipEndedOutcome;
+  let detail: string;
   try {
-    await fetch(`${b}/api/internal/chalybobs/ended`, {
+    const res = await fetch(`${b}/api/internal/chalybobs/ended`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${s}`,
@@ -86,8 +92,15 @@ export async function chalybclipEnded(args: {
         ...(args.durationS != null ? { duration_s: args.durationS } : {}),
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
     });
-  } catch {
-    // Best-effort.
+    outcome = classifyClipEnded({ status: res.status });
+    detail = String(res.status);
+  } catch (e) {
+    outcome = classifyClipEnded({});
+    detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
   }
+  if (outcome === "retry") console.error(`[chalybclip] ended for ${args.streamId} failed (${detail}); will retry`);
+  else if (detail !== "200" && detail !== "204") console.error(`[chalybclip] ended for ${args.streamId} refused (${detail}); not retrying`);
+  return outcome;
 }

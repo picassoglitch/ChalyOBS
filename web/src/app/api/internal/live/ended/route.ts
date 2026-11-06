@@ -12,9 +12,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkRelayBearer } from "@/lib/relay-auth";
 import {
+  claimClipForward,
   getClipsForwardingAllowed,
+  markSessionOfflineIfCurrent,
+  releaseClipForward,
   tenantFromStreamId,
-  updateSession,
 } from "@/lib/data";
 import { chalybclipEnded } from "@/lib/chalybclip";
 import { finalizeStream } from "@/lib/usage/stream";
@@ -35,7 +37,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const tenantId = tenantFromStreamId(streamId);
   if (!tenantId) return new NextResponse(null, { status: 204 });
 
-  await updateSession(tenantId, { isLive: false });
+  // Only if the session is still live with THIS stream: a late or retried
+  // 'ended' for an older stream must not take a newer one offline.
+  await markSessionOfflineIfCurrent(tenantId, streamId);
 
   const durationS =
     typeof body.duration_s === "number" ? body.duration_s : undefined;
@@ -53,11 +57,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Re-check the tier, not just the toggle: a user downgraded after turning
-  // the ChalyClip connection on keeps clips_enabled=true.
-  if (await getClipsForwardingAllowed(tenantId)) {
-    await chalybclipEnded({ streamId, tenantId, durationS });
+  // the ChalyClip connection on keeps clips_enabled=true. Handed off once per
+  // stream once it lands. A ChalyClip 5xx, timeout or outage releases the
+  // hand-off and answers 503 so the relay retries; ChalyClip's 'ended' is
+  // idempotent per stream, so a retry after a lost response can't clip twice.
+  let clipsOk = true;
+  if (finalized && (await getClipsForwardingAllowed(tenantId))) {
+    try {
+      if (await claimClipForward(tenantId, streamId)) {
+        const outcome = await chalybclipEnded({ streamId, tenantId, durationS });
+        if (outcome === "retry") {
+          clipsOk = false;
+          await releaseClipForward(tenantId, streamId);
+        }
+      }
+    } catch (e) {
+      clipsOk = false;
+      console.error(`[chalybclip] hand-off failed for ${streamId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   if (!finalized) return NextResponse.json({ error: "finalize_failed" }, { status: 503 });
+  if (!clipsOk) return NextResponse.json({ error: "clips_forward_failed" }, { status: 503 });
   return new NextResponse(null, { status: 204 });
 }
