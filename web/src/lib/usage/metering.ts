@@ -26,6 +26,24 @@ export const STREAM_METER_PROVIDER = "gcp";
  */
 export const STREAM_RESERVATION_TTL_SECONDS = 8 * 60 * 60;
 
+/** How long a relay retry waits for the in-flight authorize with the same
+ *  attempt key to finish before giving up (the relay's curl allows 15 s). */
+export const AUTHORIZE_WAIT_MS = 10_000;
+
+/** An authorizing claim older than this is stale (the process died mid-
+ *  admit): a retry may take it over. Well above the 5 s hub admit timeout
+ *  plus the destinations read and the row write. */
+export const AUTHORIZE_LEASE_SECONDS = 30;
+
+/** The relay's per-publish attempt key (stable across its authorize
+ *  retries for one publish). Opaque; null when absent or malformed, which
+ *  means "no reuse": mint and admit as usual. */
+export function parseAttemptKey(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const k = v.trim();
+  return /^[A-Za-z0-9._:-]{8,128}$/.test(k) ? k : null;
+}
+
 /**
  * Relay egress per streamed minute, per fan-out destination, in USD micros.
  *

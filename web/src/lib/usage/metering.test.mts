@@ -4,6 +4,7 @@ import {
   backoffSeconds,
   buildStreamAdmitRequest,
   billedDestinations,
+  parseAttemptKey,
   lockedFanout,
   buildStreamMinutesEvent,
   decideAdmission,
@@ -477,4 +478,15 @@ test("relay list: a destination added mid-stream is not pushed; locked ones stay
   assert.deepEqual(lockedFanout([tw, added], undefined), []);
   // Admitted before the set was stored: today's list until it ends.
   assert.deepEqual(lockedFanout([tw, added], null), [tw, added]);
+});
+
+test("attempt key: relay token accepted, anything else means no reuse", () => {
+  assert.equal(parseAttemptKey("a1b2c3d4-0000-4000-8000-000000000001"), "a1b2c3d4-0000-4000-8000-000000000001");
+  assert.equal(parseAttemptKey(" conn:1234abcd "), "conn:1234abcd");
+  assert.equal(parseAttemptKey(undefined), null);
+  assert.equal(parseAttemptKey(""), null);
+  assert.equal(parseAttemptKey("short"), null);
+  assert.equal(parseAttemptKey("x".repeat(129)), null);
+  assert.equal(parseAttemptKey("bad key with spaces"), null);
+  assert.equal(parseAttemptKey(42), null);
 });

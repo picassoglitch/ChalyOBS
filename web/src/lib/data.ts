@@ -576,6 +576,8 @@ export async function recordStreamAdmission(args: {
         lane: args.lane,
         destinations: args.destinations,
         destination_ids: args.destinationIds,
+        authorizing: false,
+        authorize_error: null,
         admitted_at: new Date().toISOString(),
       },
       { onConflict: "stream_id" },
@@ -613,6 +615,148 @@ export async function getStreamRecord(
     endedAt: (data.ended_at as string | null) ?? null,
     destinations: (data.destinations as number | null) ?? null,
   };
+}
+
+/** Claim a relay attempt key for this tenant: inserts a pending stream row
+ *  (authorizing) unless one already exists for (tenant, attempt_key).
+ *  Returns null when we own the new row, else the existing row's stream_id.
+ *  Throws on a failed write. */
+export async function claimAuthorizeAttempt(
+  tenantId: string,
+  attemptKey: string,
+  streamId: string,
+): Promise<string | null> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .upsert(
+      {
+        stream_id: streamId,
+        tenant_id: tenantId,
+        attempt_key: attemptKey,
+        authorizing: true,
+        claimed_at: new Date().toISOString(),
+      },
+      { onConflict: "tenant_id,attempt_key", ignoreDuplicates: true },
+    )
+    .select("stream_id");
+  if (error) throw new Error(`authorize claim failed for ${tenantId}: ${error.message}`);
+  if ((data ?? []).length === 1) return null;
+  const { data: existing, error: readError } = await db
+    .from("chalybobs_streams")
+    .select("stream_id")
+    .eq("tenant_id", tenantId)
+    .eq("attempt_key", attemptKey)
+    .maybeSingle();
+  if (readError || !existing) {
+    throw new Error(`authorize claim lookup failed for ${tenantId}: ${readError?.message ?? "row vanished"}`);
+  }
+  return existing.stream_id as string;
+}
+
+/** Hand an admitted, unstarted stream to ONE relay retry: a conditional
+ *  update, so a second retry (or a started/ended stream) gets null. */
+export async function takeOverAdmittedStream(
+  tenantId: string,
+  streamId: string,
+): Promise<{ reservationId: string | null; lane: string | null } | null> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .update({ reused_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .eq("authorizing", false)
+    .is("authorize_error", null)
+    .is("started_at", null)
+    .is("ended_at", null)
+    .is("reused_at", null)
+    .select("reservation_id, lane");
+  if (error) throw new Error(`stream takeover failed for ${streamId}: ${error.message}`);
+  const row = (data ?? [])[0];
+  return row
+    ? { reservationId: (row.reservation_id as string | null) ?? null, lane: (row.lane as string | null) ?? null }
+    : null;
+}
+
+export interface AttemptState {
+  authorizing: boolean;
+  failed: boolean;
+  /** When the current claim was taken (null only on rows without a key). */
+  claimedAt: string | null;
+}
+
+/** State of the row behind an attempt key. undefined = gone (refused). */
+export async function getAttemptState(
+  tenantId: string,
+  streamId: string,
+): Promise<AttemptState | undefined> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .select("authorizing, authorize_error, claimed_at")
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .maybeSingle();
+  if (error) throw new Error(`stream read failed for ${streamId}: ${error.message}`);
+  if (!data) return undefined;
+  return {
+    authorizing: Boolean(data.authorizing),
+    failed: data.authorize_error != null,
+    claimedAt: (data.claimed_at as string | null) ?? null,
+  };
+}
+
+/** Take over a claim whose admission threw, or whose lease ran out
+ *  (claimed_at before `staleBefore`): one conditional update, one winner.
+ *  The winner re-admits with the same stream_id. */
+export async function takeOverStaleClaim(
+  tenantId: string,
+  streamId: string,
+  staleBefore: Date,
+): Promise<boolean> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .update({ authorizing: true, authorize_error: null, claimed_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .or(
+      `and(authorizing.eq.true,claimed_at.lt.${staleBefore.toISOString()}),and(authorizing.eq.true,claimed_at.is.null),and(authorizing.eq.false,authorize_error.not.is.null)`,
+    )
+    .select("stream_id");
+  if (error) throw new Error(`claim takeover failed for ${streamId}: ${error.message}`);
+  return (data ?? []).length === 1;
+}
+
+/** The admission threw: release the claim with the error so a retry can
+ *  take it over and admit again. */
+export async function markAttemptFailed(
+  tenantId: string,
+  streamId: string,
+  message: string,
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("chalybobs_streams")
+    .update({ authorizing: false, authorize_error: message.slice(0, 500) })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .eq("authorizing", true);
+  if (error) console.error(`[streams] could not release claim ${streamId}: ${error.message}`);
+}
+
+/** Drop a pending (authorizing) row whose admission was refused, so the
+ *  attempt key doesn't point at a stream that never got a hold. */
+export async function dropPendingStream(tenantId: string, streamId: string): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("chalybobs_streams")
+    .delete()
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .eq("authorizing", true);
+  if (error) console.error(`[streams] could not drop pending ${streamId}: ${error.message}`);
 }
 
 /** First live/started wins (duration fallback when the relay sends no
