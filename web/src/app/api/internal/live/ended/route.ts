@@ -58,9 +58,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Re-check the tier, not just the toggle: a user downgraded after turning
   // the ChalyClip connection on keeps clips_enabled=true. Handed off once per
-  // stream (a repeat 'ended' makes ChalyClip clip again). Only a call that
-  // never reached ChalyClip releases the hand-off and answers 503 for a relay
-  // retry; an unknown outcome (5xx, timeout, lost response) is logged instead.
+  // stream once it lands. A ChalyClip 5xx, timeout or outage releases the
+  // hand-off and answers 503 so the relay retries; ChalyClip's 'ended' is
+  // idempotent per stream, so a retry after a lost response can't clip twice.
   let clipsOk = true;
   if (finalized && (await getClipsForwardingAllowed(tenantId))) {
     try {

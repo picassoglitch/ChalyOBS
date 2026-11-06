@@ -1,5 +1,5 @@
 import "server-only";
-import { classifyClipEnded, fetchErrorCode, type ClipEndedOutcome } from "./clip-forward";
+import { classifyClipEnded, type ClipEndedOutcome } from "./clip-forward";
 
 /**
  * ChalyClip handoff — when "Get Clips" is on, ChalyOBS forwards the stream's
@@ -66,9 +66,9 @@ export async function chalybclipStarted(args: {
 }
 
 /** Tell ChalyClip the stream ended → triggers its auto-clip pipeline. */
-/** Forward the end to ChalyClip. "retry" only when the call certainly never
- *  reached it; a 5xx, timeout or lost response is "unknown" (ChalyClip may
- *  already be clipping, and a repeat 'ended' makes it clip again). */
+/** Forward the end to ChalyClip. "retry" when it may not have landed (5xx,
+ *  timeout, reset, refused); ChalyClip's 'ended' is idempotent per stream,
+ *  so a repeat never clips twice. */
 export async function chalybclipEnded(args: {
   streamId: string;
   tenantId: string;
@@ -97,15 +97,10 @@ export async function chalybclipEnded(args: {
     outcome = classifyClipEnded({ status: res.status });
     detail = String(res.status);
   } catch (e) {
-    const code = fetchErrorCode(e);
-    outcome = classifyClipEnded({ errorCode: code });
-    detail = `${code ?? (e instanceof Error ? e.name : "error")}`;
+    outcome = classifyClipEnded({});
+    detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
   }
-  if (outcome === "retry") console.error(`[chalybclip] ended for ${args.streamId} not delivered (${detail}); will retry`);
-  if (outcome === "unknown") {
-    console.error(
-      `[chalybclip] ended for ${args.streamId} OUTCOME UNKNOWN (${detail}); not retrying — check ChalyClip for this stream`,
-    );
-  }
+  if (outcome === "retry") console.error(`[chalybclip] ended for ${args.streamId} failed (${detail}); will retry`);
+  else if (detail !== "200" && detail !== "204") console.error(`[chalybclip] ended for ${args.streamId} refused (${detail}); not retrying`);
   return outcome;
 }
