@@ -53,19 +53,58 @@ export async function enqueueOutbox(rows: OutboxInsert[]): Promise<boolean> {
 }
 
 const supabaseStore: OutboxStore = {
-  async listPending(limit) {
+  async listPending(limit, now) {
+    // Due rows only: rows backing off (a hub outage, a config 4xx retried
+    // hourly) must not fill the page and starve newer due rows.
     const db = getSupabaseAdmin();
     const { data, error } = await db
       .from(TABLE)
       .select("id, kind, reservation_id, payload, attempts, next_attempt_at")
       .eq("status", "pending")
+      .lte("next_attempt_at", now.toISOString())
       .order("id", { ascending: true })
       .limit(limit);
     if (error) {
       console.error(`[usage-outbox] list failed: ${error.message}`);
       return [];
     }
-    return (data ?? []) as OutboxRow[];
+    const due = (data ?? []) as OutboxRow[];
+    // A due settle must still wait for its reservation's pending usage, even
+    // one that is backing off: fetch those so drainOutbox can hold it back.
+    const settling = [
+      ...new Set(due.filter((r) => r.kind === "settle" && r.reservation_id).map((r) => r.reservation_id!)),
+    ];
+    if (settling.length === 0) return due;
+    const { data: usage, error: usageError } = await db
+      .from(TABLE)
+      .select("id, kind, reservation_id, payload, attempts, next_attempt_at")
+      .eq("status", "pending")
+      .eq("kind", "usage")
+      .in("reservation_id", settling);
+    if (usageError) {
+      // Can't prove the spend went first: hold every settle this round.
+      console.error(`[usage-outbox] list (usage of settling reservations) failed: ${usageError.message}`);
+      return due.filter((r) => r.kind !== "settle");
+    }
+    const seen = new Set(due.map((r) => r.id));
+    const extra = ((usage ?? []) as OutboxRow[]).filter((r) => !seen.has(r.id));
+    return [...due, ...extra].sort((a, b) => a.id - b.id);
+  },
+  async claim(id, now, leaseUntil) {
+    // One conditional UPDATE: Postgres re-checks the WHERE under the row
+    // lock, so of two drains racing for the same row only one gets it.
+    const { data, error } = await getSupabaseAdmin()
+      .from(TABLE)
+      .update({ next_attempt_at: leaseUntil.toISOString() })
+      .eq("id", id)
+      .eq("status", "pending")
+      .lte("next_attempt_at", now.toISOString())
+      .select("id");
+    if (error) {
+      console.error(`[usage-outbox] claim failed id=${id}: ${error.message}`);
+      return false;
+    }
+    return (data ?? []).length === 1;
   },
   async markSent(id, attempts) {
     await getSupabaseAdmin()
@@ -77,13 +116,15 @@ const supabaseStore: OutboxStore = {
     await getSupabaseAdmin()
       .from(TABLE)
       .update({ attempts, next_attempt_at: nextAttemptAt.toISOString(), last_error: error })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", "pending");
   },
   async markDead(id, attempts, error) {
     await getSupabaseAdmin()
       .from(TABLE)
       .update({ status: "dead", attempts, last_error: error })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", "pending");
   },
 };
 
