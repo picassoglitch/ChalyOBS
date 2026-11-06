@@ -4,15 +4,17 @@ import {
   markStreamEnded,
   recordStreamAdmission,
   getFanoutDestinations,
-  listRecentStreams,
+  claimAuthorizeAttempt,
+  dropPendingStream,
+  isStreamAuthorizing,
   mintStreamId,
+  takeOverAdmittedStream,
 } from "@/lib/data";
 import { getHubClient } from "./hub";
 import {
   buildStreamAdmitRequest,
-  AUTHORIZE_REUSE_WINDOW_SECONDS,
+  AUTHORIZE_WAIT_MS,
   billedDestinations,
-  pickReusableStream,
   buildStreamMinutesEvent,
   decideAdmission,
   streamDurationSeconds,
@@ -29,35 +31,63 @@ import { drainUsageOutbox, enqueueOutbox, type OutboxInsert } from "./outbox";
 
 let warnedDevUnmetered = false;
 
-/** live/authorize: reuse this tenant's admitted-but-unstarted stream from
- *  the last AUTHORIZE_REUSE_WINDOW_SECONDS (a relay retry or a quick
- *  reconnect) with its hold, or mint a new stream and admit it. Holds are
- *  never cancelled here. If the reuse lookup fails, a new stream is minted
- *  (the old behavior). */
+/** live/authorize. Without an attempt key: mint a stream and admit it.
+ *  With the relay's attempt key (stable across its retries for ONE publish):
+ *  the first call claims (tenant, key) atomically and admits; a retry with
+ *  the same key gets that same stream and hold, once, after it's admitted.
+ *  A different key is a different publish and is admitted on its own.
+ *  Holds are never cancelled here. */
 export async function authorizeStream(
   tenantId: string,
+  attemptKey: string | null,
+  waitMs = AUTHORIZE_WAIT_MS,
 ): Promise<{ streamId: string; decision: AdmissionDecision; reused: boolean }> {
-  const now = new Date();
+  const streamId = mintStreamId(tenantId);
+  if (!attemptKey) return { streamId, decision: await admitStream(tenantId, streamId), reused: false };
+
+  let existing: string | null;
   try {
-    const since = new Date(now.getTime() - AUTHORIZE_REUSE_WINDOW_SECONDS * 1000).toISOString();
-    const reuse = pickReusableStream(await listRecentStreams(tenantId, since), now);
-    if (reuse) {
-      console.warn(
-        `[usage] authorize reuses unstarted stream ${reuse.streamId} (reservation ${reuse.reservationId}) instead of a new hold`,
-      );
-      return {
-        streamId: reuse.streamId,
-        decision: { allow: true, reservationId: reuse.reservationId, lane: reuse.lane, metered: true },
-        reused: true,
-      };
+    existing = await claimAuthorizeAttempt(tenantId, attemptKey, streamId);
+  } catch (e) {
+    console.error(`[usage] refusing authorize for ${tenantId}: ${e instanceof Error ? e.message : String(e)}`);
+    return { streamId, decision: { allow: false, error: "usage_unavailable", reason: "authorize_claim_failed" }, reused: false };
+  }
+  if (existing === null) {
+    const decision = await admitStream(tenantId, streamId);
+    if (!decision.allow) await dropPendingStream(tenantId, streamId);
+    return { streamId, decision, reused: false };
+  }
+
+  // A relay retry of the same publish: wait for the first call to finish,
+  // then take its stream over (only one retry can).
+  const deadline = Date.now() + waitMs;
+  try {
+    for (;;) {
+      const authorizing = await isStreamAuthorizing(tenantId, existing);
+      if (authorizing === undefined) break; // first call was refused
+      if (!authorizing) {
+        const held = await takeOverAdmittedStream(tenantId, existing);
+        if (held) {
+          console.warn(`[usage] authorize retry reuses stream ${existing} (reservation ${held.reservationId ?? "-"})`);
+          return {
+            streamId: existing,
+            decision: { allow: true, reservationId: held.reservationId, lane: held.lane, metered: held.reservationId !== null },
+            reused: true,
+          };
+        }
+        break; // already taken over, started or ended
+      }
+      if (Date.now() >= deadline) break;
+      await new Promise((r) => setTimeout(r, 250));
     }
   } catch (e) {
-    console.error(
-      `[usage] hold reuse check failed for tenant ${tenantId}, minting a new stream: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    console.error(`[usage] authorize retry check failed for ${existing}: ${e instanceof Error ? e.message : String(e)}`);
   }
-  const streamId = mintStreamId(tenantId);
-  return { streamId, decision: await admitStream(tenantId, streamId), reused: false };
+  return {
+    streamId: existing,
+    decision: { allow: false, error: "usage_unavailable", reason: "authorize_attempt_used" },
+    reused: false,
+  };
 }
 
 /** Ask the hub whether this tenant may go live, and persist the reservation

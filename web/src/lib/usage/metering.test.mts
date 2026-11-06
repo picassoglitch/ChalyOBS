@@ -3,10 +3,8 @@ import assert from "node:assert/strict";
 import {
   backoffSeconds,
   buildStreamAdmitRequest,
-  AUTHORIZE_REUSE_WINDOW_SECONDS,
-  type AdmittedStream,
   billedDestinations,
-  pickReusableStream,
+  parseAttemptKey,
   lockedFanout,
   buildStreamMinutesEvent,
   decideAdmission,
@@ -482,22 +480,13 @@ test("relay list: a destination added mid-stream is not pushed; locked ones stay
   assert.deepEqual(lockedFanout([tw, added], null), [tw, added]);
 });
 
-test("authorize reuse: newest unstarted, unended hold within 10 min; else null", () => {
-  const now = new Date("2026-11-06T12:00:00Z");
-  const row = (id: string, minsAgo: number, over: Partial<AdmittedStream> = {}): AdmittedStream => ({
-    streamId: id,
-    reservationId: `r-${id}`,
-    lane: "std",
-    admittedAt: new Date(now.getTime() - minsAgo * 60_000).toISOString(),
-    startedAt: null,
-    endedAt: null,
-    ...over,
-  });
-  assert.equal(AUTHORIZE_REUSE_WINDOW_SECONDS, 600);
-  assert.equal(pickReusableStream([row("a", 9), row("b", 2)], now)?.streamId, "b");
-  assert.equal(pickReusableStream([row("old", 11)], now), null);
-  assert.equal(pickReusableStream([row("s", 1, { startedAt: now.toISOString() })], now), null);
-  assert.equal(pickReusableStream([row("e", 1, { endedAt: now.toISOString() })], now), null);
-  assert.equal(pickReusableStream([row("u", 1, { reservationId: null })], now), null);
-  assert.equal(pickReusableStream([], now), null);
+test("attempt key: relay token accepted, anything else means no reuse", () => {
+  assert.equal(parseAttemptKey("a1b2c3d4-0000-4000-8000-000000000001"), "a1b2c3d4-0000-4000-8000-000000000001");
+  assert.equal(parseAttemptKey(" conn:1234abcd "), "conn:1234abcd");
+  assert.equal(parseAttemptKey(undefined), null);
+  assert.equal(parseAttemptKey(""), null);
+  assert.equal(parseAttemptKey("short"), null);
+  assert.equal(parseAttemptKey("x".repeat(129)), null);
+  assert.equal(parseAttemptKey("bad key with spaces"), null);
+  assert.equal(parseAttemptKey(42), null);
 });

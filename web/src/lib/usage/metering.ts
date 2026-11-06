@@ -26,38 +26,17 @@ export const STREAM_METER_PROVIDER = "gcp";
  */
 export const STREAM_RESERVATION_TTL_SECONDS = 8 * 60 * 60;
 
-/** A live/authorize within this window of an admitted stream that never
- *  started (relay timeout/retry, a publish that dropped before on_ready
- *  finished) reuses that stream and its hold instead of minting a new
- *  stream_id with a second 8 h hold. 10 min covers relay retries and a
- *  quick reconnect; older unstarted holds are left to their TTL. */
-export const AUTHORIZE_REUSE_WINDOW_SECONDS = 10 * 60;
+/** How long a relay retry waits for the in-flight authorize with the same
+ *  attempt key to finish before giving up (the relay's curl allows 15 s). */
+export const AUTHORIZE_WAIT_MS = 10_000;
 
-export interface AdmittedStream {
-  streamId: string;
-  reservationId: string | null;
-  lane: string | null;
-  admittedAt: string;
-  startedAt: string | null;
-  endedAt: string | null;
-}
-
-/** The newest stream of this tenant that holds a reservation, never
- *  started, never ended, and was admitted within the window; else null. */
-export function pickReusableStream(
-  rows: readonly AdmittedStream[],
-  now: Date,
-  windowS = AUTHORIZE_REUSE_WINDOW_SECONDS,
-): AdmittedStream | null {
-  const since = now.getTime() - windowS * 1000;
-  let best: AdmittedStream | null = null;
-  for (const r of rows) {
-    const at = Date.parse(r.admittedAt);
-    if (!r.reservationId || r.startedAt || r.endedAt) continue;
-    if (!(at >= since && at <= now.getTime())) continue;
-    if (!best || at > Date.parse(best.admittedAt)) best = r;
-  }
-  return best;
+/** The relay's per-publish attempt key (stable across its authorize
+ *  retries for one publish). Opaque; null when absent or malformed, which
+ *  means "no reuse": mint and admit as usual. */
+export function parseAttemptKey(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const k = v.trim();
+  return /^[A-Za-z0-9._:-]{8,128}$/.test(k) ? k : null;
 }
 
 /**

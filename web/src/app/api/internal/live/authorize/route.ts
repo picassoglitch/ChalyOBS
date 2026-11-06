@@ -21,6 +21,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { checkRelayBearer } from "@/lib/relay-auth";
 import { getTenantByStreamKey } from "@/lib/data";
 import { authorizeStream } from "@/lib/usage/stream";
+import { parseAttemptKey } from "@/lib/usage/metering";
 import { drainUsageOutbox } from "@/lib/usage/outbox";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -28,9 +29,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  let body: { path?: string };
+  let body: { path?: string; attempt_key?: unknown };
   try {
-    body = (await request.json()) as { path?: string };
+    body = (await request.json()) as { path?: string; attempt_key?: unknown };
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
@@ -51,8 +52,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Unique stream id per session — encodes the tenant (<tenant>__<random>)
   // so the recording prefix is tenant-namespaced. The relay echoes it back
   // on destinations/started/ended; it is also the hub's external_job_id. A
-  // retry within the reuse window gets the same unstarted stream and hold.
-  const { streamId, decision: admission } = await authorizeStream(tenantId);
+  // relay retry with the same attempt_key gets the same stream and hold.
+  const { streamId, decision: admission } = await authorizeStream(
+    tenantId,
+    parseAttemptKey(body.attempt_key),
+  );
   // Flush any usage left over from earlier sessions without delaying the relay.
   after(() => drainUsageOutbox());
   if (!admission.allow) {
