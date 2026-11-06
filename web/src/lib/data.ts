@@ -961,3 +961,77 @@ export async function listStreams(
     durationS: (r.duration_s as number | null) ?? null,
   }));
 }
+
+// ── Abort a never-started stream (migration 0031) ───────────────────────────
+
+/** The stream row behind (tenant, attempt_key) — the relay aborts by its
+ *  attempt key when it never learned the stream_id. Throws on a failed read. */
+export async function findStreamByAttemptKey(
+  tenantId: string,
+  attemptKey: string,
+): Promise<string | null> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .select("stream_id")
+    .eq("tenant_id", tenantId)
+    .eq("attempt_key", attemptKey)
+    .maybeSingle();
+  if (error) throw new Error(`attempt lookup failed for ${tenantId}: ${error.message}`);
+  return data ? (data.stream_id as string) : null;
+}
+
+export type AbortResult =
+  | { kind: "aborted"; reservationId: string | null }
+  | { kind: "nothing" } // no row, or already aborted
+  | { kind: "started" } // can't abort: it went live
+  | { kind: "authorizing" }; // admission still running: try again
+
+/** Abort a stream that never started: one conditional update marks it
+ *  aborted + ended (no usage), and returns its reservation so the caller
+ *  can release the hold. Idempotent. Throws on a failed read/write. */
+export async function abortUnstartedStream(
+  tenantId: string,
+  streamId: string,
+): Promise<AbortResult> {
+  const db = getSupabaseAdmin();
+  const now = new Date().toISOString();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .update({ aborted_at: now, ended_at: now, duration_s: 0 })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .is("started_at", null)
+    .is("ended_at", null)
+    .is("aborted_at", null)
+    .eq("authorizing", false)
+    .select("reservation_id");
+  if (error) throw new Error(`abort failed for ${streamId}: ${error.message}`);
+  const won = (data ?? [])[0];
+  if (won) return { kind: "aborted", reservationId: (won.reservation_id as string | null) ?? null };
+
+  const { data: row, error: readError } = await db
+    .from("chalybobs_streams")
+    .select("started_at, aborted_at, authorizing, authorize_error")
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .maybeSingle();
+  if (readError) throw new Error(`abort read failed for ${streamId}: ${readError.message}`);
+  if (!row || row.aborted_at) return { kind: "nothing" };
+  if (row.started_at) return { kind: "started" };
+  if (row.authorizing) return { kind: "authorizing" };
+  return { kind: "nothing" }; // ended without starting, or admission failed
+}
+
+/** The release couldn't be queued: put the stream back so a retry redoes it. */
+export async function undoAbort(tenantId: string, streamId: string): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("chalybobs_streams")
+    .update({ aborted_at: null, ended_at: null, duration_s: null })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .is("started_at", null)
+    .not("aborted_at", "is", null);
+  if (error) console.error(`[streams] could not undo abort of ${streamId}: ${error.message}`);
+}
