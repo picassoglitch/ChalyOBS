@@ -62,6 +62,13 @@ export function streamEstTokens(destinations = 1): number {
   );
 }
 
+/** Copies to bill at live/ended: the count locked at authorize, never a
+ *  fresh read, so mid-stream changes don't move the price. Rows admitted
+ *  before the count was stored bill one copy. */
+export function billedDestinations(locked: number | null | undefined): number {
+  return Math.max(1, Math.floor(locked ?? 1));
+}
+
 export function buildStreamAdmitRequest(args: {
   tenantId: string;
   streamId: string;

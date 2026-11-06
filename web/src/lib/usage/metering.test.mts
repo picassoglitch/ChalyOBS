@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   backoffSeconds,
   buildStreamAdmitRequest,
+  billedDestinations,
   buildStreamMinutesEvent,
   decideAdmission,
   drainOutbox,
@@ -38,6 +39,26 @@ test("admit request: reserves one hour at the fan-out it will bill", () => {
   assert.equal(three, 3 * one);
   // No destination enabled still reserves one copy, as it is billed.
   assert.equal(buildStreamAdmitRequest({ tenantId: "u1", streamId: "s", destinations: 0 }).est_tokens, one);
+});
+
+test("fan-out locked at authorize: destinations change mid-stream, charge equals reservation", () => {
+  // Authorize with 3 destinations enabled; the count is stored on the stream row.
+  const reserved = buildStreamAdmitRequest({ tenantId: "u1", streamId: "s", destinations: 3 }).est_tokens;
+  const lockedOnRow = 3;
+  // Mid-stream the user disables 2 (or adds 4): live/ended bills the locked count.
+  const charged = Math.ceil(
+    buildStreamMinutesEvent({
+      streamId: "s",
+      durationS: 3600,
+      reservationId: "r1",
+      occurredAt: new Date(),
+      destinations: billedDestinations(lockedOnRow),
+    }).cost_usd_micros / 4,
+  );
+  assert.equal(charged, reserved);
+  // Admitted before the column existed: one copy.
+  assert.equal(billedDestinations(null), 1);
+  assert.equal(billedDestinations(0), 1);
 });
 
 test("decideAdmission: dev (no hub) allows unmetered", () => {
