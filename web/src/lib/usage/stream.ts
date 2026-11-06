@@ -102,7 +102,8 @@ export async function authorizeStream(
         };
       }
       const staleBefore = new Date(Date.now() - leaseMs);
-      if (state.failed || Date.parse(state.admittedAt) < staleBefore.getTime()) {
+      const claimedAt = state.claimedAt ? Date.parse(state.claimedAt) : Number.NaN;
+      if (state.failed || !(claimedAt >= staleBefore.getTime())) {
         if (await takeOverStaleClaim(tenantId, existing, staleBefore)) {
           console.warn(`[usage] authorize retry takes over ${state.failed ? "failed" : "stale"} claim ${existing}`);
           return await admitClaimed(tenantId, existing, admit);

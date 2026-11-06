@@ -630,7 +630,13 @@ export async function claimAuthorizeAttempt(
   const { data, error } = await db
     .from("chalybobs_streams")
     .upsert(
-      { stream_id: streamId, tenant_id: tenantId, attempt_key: attemptKey, authorizing: true },
+      {
+        stream_id: streamId,
+        tenant_id: tenantId,
+        attempt_key: attemptKey,
+        authorizing: true,
+        claimed_at: new Date().toISOString(),
+      },
       { onConflict: "tenant_id,attempt_key", ignoreDuplicates: true },
     )
     .select("stream_id");
@@ -676,8 +682,8 @@ export async function takeOverAdmittedStream(
 export interface AttemptState {
   authorizing: boolean;
   failed: boolean;
-  /** Claim time while authorizing; admission time after. */
-  admittedAt: string;
+  /** When the current claim was taken (null only on rows without a key). */
+  claimedAt: string | null;
 }
 
 /** State of the row behind an attempt key. undefined = gone (refused). */
@@ -688,7 +694,7 @@ export async function getAttemptState(
   const db = getSupabaseAdmin();
   const { data, error } = await db
     .from("chalybobs_streams")
-    .select("authorizing, authorize_error, admitted_at")
+    .select("authorizing, authorize_error, claimed_at")
     .eq("tenant_id", tenantId)
     .eq("stream_id", streamId)
     .maybeSingle();
@@ -697,13 +703,13 @@ export async function getAttemptState(
   return {
     authorizing: Boolean(data.authorizing),
     failed: data.authorize_error != null,
-    admittedAt: data.admitted_at as string,
+    claimedAt: (data.claimed_at as string | null) ?? null,
   };
 }
 
-/** Take over a claim whose admission threw, or whose lease (claim time
- *  before `staleBefore`) ran out: one conditional update, one winner. The
- *  winner re-admits with the same stream_id. */
+/** Take over a claim whose admission threw, or whose lease ran out
+ *  (claimed_at before `staleBefore`): one conditional update, one winner.
+ *  The winner re-admits with the same stream_id. */
 export async function takeOverStaleClaim(
   tenantId: string,
   streamId: string,
@@ -712,11 +718,11 @@ export async function takeOverStaleClaim(
   const db = getSupabaseAdmin();
   const { data, error } = await db
     .from("chalybobs_streams")
-    .update({ authorizing: true, authorize_error: null, admitted_at: new Date().toISOString() })
+    .update({ authorizing: true, authorize_error: null, claimed_at: new Date().toISOString() })
     .eq("tenant_id", tenantId)
     .eq("stream_id", streamId)
     .or(
-      `and(authorizing.eq.true,admitted_at.lt.${staleBefore.toISOString()}),and(authorizing.eq.false,authorize_error.not.is.null)`,
+      `and(authorizing.eq.true,claimed_at.lt.${staleBefore.toISOString()}),and(authorizing.eq.true,claimed_at.is.null),and(authorizing.eq.false,authorize_error.not.is.null)`,
     )
     .select("stream_id");
   if (error) throw new Error(`claim takeover failed for ${streamId}: ${error.message}`);
