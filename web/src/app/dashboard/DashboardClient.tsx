@@ -293,7 +293,13 @@ export function DashboardClient({
             }}
             onSaveDestination={(id, patch: ChannelPatch) => {
               startTransition(async () => {
-                await updateDestinationAction(id, patch);
+                try {
+                  await updateDestinationAction(id, patch);
+                } catch (e) {
+                  // The modal already blocks bad URLs; don't take the page down if one slips by.
+                  console.error("[dashboard] saving the channel failed", e);
+                  window.alert("No se pudo guardar el canal. Revisa la URL del servidor.");
+                }
                 router.refresh();
               });
             }}

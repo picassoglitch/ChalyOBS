@@ -6,6 +6,7 @@ import {
   PLATFORM_META,
   PlatformId,
 } from "@/lib/destinations";
+import { isAllowedIngestUrl } from "@/lib/push-url";
 import { CopyIcon } from "./icons";
 
 type Dest = DestinationConfig & { id: string };
@@ -38,8 +39,8 @@ export function ChannelEditModal({ destination, onClose, onSave, busy }: Props) 
   const [streamKey, setStreamKey] = useState(destination.streamKey);
   const [revealKey, setRevealKey] = useState(false);
 
-  const canSave =
-    ingestUrl.trim().length > 0 && streamKey.trim().length > 0 && !busy;
+  const urlOk = isAllowedIngestUrl(ingestUrl);
+  const canSave = urlOk && streamKey.trim().length > 0 && !busy;
 
   return (
     <div
@@ -96,9 +97,11 @@ export function ChannelEditModal({ destination, onClose, onSave, busy }: Props) 
             mono
             readOnly={!isCustom && meta.ingestHint.length > 0}
             hint={
-              !isCustom && meta.ingestHint.length > 0
-                ? "URL fija de la plataforma. Solo necesitas la clave de transmisión."
-                : undefined
+              ingestUrl.trim() && !urlOk
+                ? "Usa una URL que empiece con rtmp://, rtmps:// o srt://"
+                : !isCustom && meta.ingestHint.length > 0
+                  ? "URL fija de la plataforma. Solo necesitas la clave de transmisión."
+                  : undefined
             }
           />
 
