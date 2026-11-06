@@ -40,7 +40,11 @@ export async function admitStream(
       console.warn("[usage] CHALYB_BASE_URL unset — live streams are NOT admitted or metered (dev mode)");
     }
   } else {
-    const res = await client.admit(buildStreamAdmitRequest({ tenantId, streamId }));
+    // Reserve for the copies the relay will push (live/ended bills per copy).
+    const destinations = await getFanoutDestinations(tenantId)
+      .then((d) => d.length)
+      .catch(() => 1);
+    const res = await client.admit(buildStreamAdmitRequest({ tenantId, streamId, destinations }));
     if (!res.ok) {
       console.error(
         `[usage] admit failed for stream ${streamId} (failing closed): ${res.status ?? "network"} ${res.message}`,

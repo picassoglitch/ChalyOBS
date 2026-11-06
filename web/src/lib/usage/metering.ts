@@ -53,16 +53,20 @@ export const MICROS_PER_BILLABLE_TOKEN = 4;
 /** Contract caps: 0 ≤ cost_usd_micros ≤ 10^9 per event. */
 const MAX_COST_USD_MICROS = 1_000_000_000;
 
-export function streamEstTokens(): number {
+/** One hour of the stream at `destinations` copies, priced like the
+ *  live/ended event (streamCostUsdMicros), so the reservation covers the
+ *  fan-out the spend will report. */
+export function streamEstTokens(destinations = 1): number {
   return Math.ceil(
-    (STREAM_EST_MINUTES * STREAM_COST_USD_MICROS_PER_MINUTE) /
-      MICROS_PER_BILLABLE_TOKEN,
+    streamCostUsdMicros(STREAM_EST_MINUTES, destinations) / MICROS_PER_BILLABLE_TOKEN,
   );
 }
 
 export function buildStreamAdmitRequest(args: {
   tenantId: string;
   streamId: string;
+  /** Enabled fan-out destinations at authorize time. */
+  destinations?: number;
 }): AdmitRequest {
   return {
     external_user_id: args.tenantId,
@@ -71,7 +75,7 @@ export function buildStreamAdmitRequest(args: {
     external_job_id: args.streamId,
     class: "stream",
     operation: STREAM_OPERATION,
-    est_tokens: streamEstTokens(),
+    est_tokens: streamEstTokens(args.destinations),
     upload_mb: 0,
     source_minutes: 0,
     storage_mb_after: 0,

@@ -27,6 +27,19 @@ test("admit request: stream class, stable job id, no boost", () => {
   assert.ok(Number.isInteger(req.est_tokens) && req.est_tokens > 0);
 });
 
+test("admit request: reserves one hour at the fan-out it will bill", () => {
+  const one = buildStreamAdmitRequest({ tenantId: "u1", streamId: "s" }).est_tokens;
+  const three = buildStreamAdmitRequest({ tenantId: "u1", streamId: "s", destinations: 3 }).est_tokens;
+  const billed3h = Math.ceil(
+    buildStreamMinutesEvent({ streamId: "s", durationS: 3600, reservationId: null, occurredAt: new Date(), destinations: 3 })
+      .cost_usd_micros / 4,
+  );
+  assert.equal(three, billed3h);
+  assert.equal(three, 3 * one);
+  // No destination enabled still reserves one copy, as it is billed.
+  assert.equal(buildStreamAdmitRequest({ tenantId: "u1", streamId: "s", destinations: 0 }).est_tokens, one);
+});
+
 test("decideAdmission: dev (no hub) allows unmetered", () => {
   assert.deepEqual(decideAdmission("disabled"), {
     allow: true,
