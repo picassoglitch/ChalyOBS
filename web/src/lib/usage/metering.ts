@@ -147,6 +147,12 @@ export function hubErrorBody(message: string | undefined): { error?: string; rea
   }
 }
 
+/** A refusal whose outcome is unknown: the hub may have reserved before the
+ *  answer was lost (transport error, timeout, 5xx). Not a definite "no". */
+export function isAmbiguousAdmission(d: AdmissionDecision): boolean {
+  return !d.allow && d.reason === "hub_unreachable";
+}
+
 /**
  * Turn a hub admit result into an authorize decision.
  *   hub === "disabled"      → CHALYB_BASE_URL unset (dev): allow, unmetered.

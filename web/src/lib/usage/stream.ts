@@ -18,6 +18,7 @@ import {
   AUTHORIZE_LEASE_SECONDS,
   AUTHORIZE_WAIT_MS,
   billedDestinations,
+  isAmbiguousAdmission,
   buildStreamMinutesEvent,
   decideAdmission,
   streamDurationSeconds,
@@ -55,8 +56,32 @@ async function admitClaimed(tenantId: string, streamId: string, admit: Admit): P
     await markAttemptFailed(tenantId, streamId, msg);
     return refuse(streamId, "authorize_failed");
   }
-  if (!decision.allow) await dropPendingStream(tenantId, streamId);
+  if (isAmbiguousAdmission(decision)) {
+    // The hub may hold a reservation for this stream_id: keep the row so a
+    // retry re-admits the same job id (one hold) or an abort can release it.
+    await markAttemptFailed(tenantId, streamId, "admit_unknown: hub unreachable");
+  } else if (!decision.allow) {
+    await dropPendingStream(tenantId, streamId);
+  }
   return { streamId, decision, reused: false };
+}
+
+/** The hold the hub may have for a stream whose admit outcome was lost. The
+ *  hub has no cancel-by-job-id, but admit is idempotent per external_job_id:
+ *  re-asking returns the open reservation (or makes one, which the caller
+ *  cancels right away). Null when there's nothing to release; throws when
+ *  the hub can't be reached (retry later). */
+export async function resolveLostHold(tenantId: string, streamId: string): Promise<string | null> {
+  const { client } = getHubClient();
+  if (!client) return null;
+  const res = await client.admit(buildStreamAdmitRequest({ tenantId, streamId, destinations: 1 }));
+  if (!res.ok) {
+    if (res.status === undefined || res.status >= 500) {
+      throw new Error(`hub unreachable resolving ${streamId}: ${res.status ?? "network"} ${res.message}`);
+    }
+    return null;
+  }
+  return res.data.allowed === true && res.data.reservation_id ? res.data.reservation_id : null;
 }
 
 /** live/authorize. Without an attempt key: mint a stream and admit it.
