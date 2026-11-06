@@ -10,6 +10,7 @@ import {
 } from "./destinations";
 import { isFullAccessTier } from "./tier";
 import { buildPushUrl } from "./push-url";
+import type { AdmittedStream } from "./usage/metering";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -613,6 +614,31 @@ export async function getStreamRecord(
     endedAt: (data.ended_at as string | null) ?? null,
     destinations: (data.destinations as number | null) ?? null,
   };
+}
+
+/** The tenant's streams admitted since `sinceIso` (live/authorize reuse
+ *  check). Throws on a failed read. */
+export async function listRecentStreams(
+  tenantId: string,
+  sinceIso: string,
+): Promise<AdmittedStream[]> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .select("stream_id, reservation_id, lane, admitted_at, started_at, ended_at")
+    .eq("tenant_id", tenantId)
+    .gte("admitted_at", sinceIso)
+    .order("admitted_at", { ascending: false })
+    .limit(20);
+  if (error) throw new Error(`recent streams read failed for ${tenantId}: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    streamId: r.stream_id as string,
+    reservationId: (r.reservation_id as string | null) ?? null,
+    lane: (r.lane as string | null) ?? null,
+    admittedAt: r.admitted_at as string,
+    startedAt: (r.started_at as string | null) ?? null,
+    endedAt: (r.ended_at as string | null) ?? null,
+  }));
 }
 
 /** First live/started wins (duration fallback when the relay sends no

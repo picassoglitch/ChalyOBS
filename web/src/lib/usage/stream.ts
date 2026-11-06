@@ -4,11 +4,15 @@ import {
   markStreamEnded,
   recordStreamAdmission,
   getFanoutDestinations,
+  listRecentStreams,
+  mintStreamId,
 } from "@/lib/data";
 import { getHubClient } from "./hub";
 import {
   buildStreamAdmitRequest,
+  AUTHORIZE_REUSE_WINDOW_SECONDS,
   billedDestinations,
+  pickReusableStream,
   buildStreamMinutesEvent,
   decideAdmission,
   streamDurationSeconds,
@@ -24,6 +28,37 @@ import { drainUsageOutbox, enqueueOutbox, type OutboxInsert } from "./outbox";
  */
 
 let warnedDevUnmetered = false;
+
+/** live/authorize: reuse this tenant's admitted-but-unstarted stream from
+ *  the last AUTHORIZE_REUSE_WINDOW_SECONDS (a relay retry or a quick
+ *  reconnect) with its hold, or mint a new stream and admit it. Holds are
+ *  never cancelled here. If the reuse lookup fails, a new stream is minted
+ *  (the old behavior). */
+export async function authorizeStream(
+  tenantId: string,
+): Promise<{ streamId: string; decision: AdmissionDecision; reused: boolean }> {
+  const now = new Date();
+  try {
+    const since = new Date(now.getTime() - AUTHORIZE_REUSE_WINDOW_SECONDS * 1000).toISOString();
+    const reuse = pickReusableStream(await listRecentStreams(tenantId, since), now);
+    if (reuse) {
+      console.warn(
+        `[usage] authorize reuses unstarted stream ${reuse.streamId} (reservation ${reuse.reservationId}) instead of a new hold`,
+      );
+      return {
+        streamId: reuse.streamId,
+        decision: { allow: true, reservationId: reuse.reservationId, lane: reuse.lane, metered: true },
+        reused: true,
+      };
+    }
+  } catch (e) {
+    console.error(
+      `[usage] hold reuse check failed for tenant ${tenantId}, minting a new stream: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  const streamId = mintStreamId(tenantId);
+  return { streamId, decision: await admitStream(tenantId, streamId), reused: false };
+}
 
 /** Ask the hub whether this tenant may go live, and persist the reservation
  *  on the stream row. Fails closed when the hub is configured but

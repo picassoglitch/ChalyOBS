@@ -19,8 +19,8 @@
 
 import { after, NextRequest, NextResponse } from "next/server";
 import { checkRelayBearer } from "@/lib/relay-auth";
-import { getTenantByStreamKey, mintStreamId } from "@/lib/data";
-import { admitStream } from "@/lib/usage/stream";
+import { getTenantByStreamKey } from "@/lib/data";
+import { authorizeStream } from "@/lib/usage/stream";
 import { drainUsageOutbox } from "@/lib/usage/outbox";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -48,14 +48,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "unknown_stream_key" }, { status: 403 });
   }
 
-  // Fresh, unique stream id per session — encodes the tenant
-  // (<tenant>__<random>) so the recording prefix is tenant-namespaced and
-  // every session is its own recording/clip set. The relay echoes this back
-  // on destinations/started/ended; we recover the tenant from it. It is also
-  // the hub's external_job_id for this session's reservation.
-  const streamId = mintStreamId(tenantId);
-
-  const admission = await admitStream(tenantId, streamId);
+  // Unique stream id per session — encodes the tenant (<tenant>__<random>)
+  // so the recording prefix is tenant-namespaced. The relay echoes it back
+  // on destinations/started/ended; it is also the hub's external_job_id. A
+  // retry within the reuse window gets the same unstarted stream and hold.
+  const { streamId, decision: admission } = await authorizeStream(tenantId);
   // Flush any usage left over from earlier sessions without delaying the relay.
   after(() => drainUsageOutbox());
   if (!admission.allow) {
