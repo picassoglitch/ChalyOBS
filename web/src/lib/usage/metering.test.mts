@@ -13,6 +13,7 @@ import {
   streamMinutes,
   type OutboxRow,
   type OutboxStore,
+  withRetries,
 } from "./metering.ts";
 
 test("admit request: stream class, stable job id, no boost", () => {
@@ -411,4 +412,20 @@ test("decideAdmission: hub 4xx — reason honoured, unknown user, config", () =>
     error: "usage_unavailable",
     reason: "hub_unreachable",
   });
+});
+
+test("withRetries: retries a failing read, then rethrows the last error", async () => {
+  const waits: number[] = [];
+  const sleep = async (ms: number) => void waits.push(ms);
+  let calls = 0;
+  const ok = await withRetries(async () => (++calls < 3 ? Promise.reject(new Error("db down")) : "row"), [250, 1000], sleep);
+  assert.equal(ok, "row");
+  assert.deepEqual(waits, [250, 1000]);
+
+  calls = 0;
+  await assert.rejects(
+    withRetries(async () => { calls++; throw new Error(`fail ${calls}`); }, [1, 1], sleep),
+    /fail 3/,
+  );
+  assert.equal(calls, 3);
 });

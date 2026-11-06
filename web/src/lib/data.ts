@@ -590,12 +590,15 @@ export async function getStreamRecord(
   streamId: string,
 ): Promise<StreamRecord | null> {
   const db = getSupabaseAdmin();
-  const { data } = await db
+  const { data, error } = await db
     .from("chalybobs_streams")
     .select("reservation_id, admitted_at, started_at, ended_at")
     .eq("tenant_id", tenantId)
     .eq("stream_id", streamId)
     .maybeSingle();
+  // A failed read is not "no such stream": that would bill without the
+  // reservation and never settle it.
+  if (error) throw new Error(`stream record read failed for ${streamId}: ${error.message}`);
   if (!data) return null;
   return {
     reservationId: (data.reservation_id as string | null) ?? null,

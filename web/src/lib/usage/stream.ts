@@ -11,6 +11,7 @@ import {
   buildStreamMinutesEvent,
   decideAdmission,
   streamDurationSeconds,
+  withRetries,
   type AdmissionDecision,
 } from "./metering";
 import { drainUsageOutbox, enqueueOutbox, type OutboxInsert } from "./outbox";
@@ -68,14 +69,20 @@ export async function admitStream(
 }
 
 /** Report the finished stream's minutes and close its reservation. Writes
- *  both to the durable outbox, then drains. Idempotent per stream_id. */
+ *  both to the durable outbox, then drains. Idempotent per stream_id.
+ *  Throws when the stream row can't be read (after retries): nothing is
+ *  enqueued and the stream isn't marked ended, so a later live/ended can
+ *  still bill it with its reservation. */
 export async function finalizeStream(args: {
   tenantId: string;
   streamId: string;
   reportedDurationS?: number;
 }): Promise<void> {
   const now = new Date();
-  const record = await getStreamRecord(args.tenantId, args.streamId);
+  const record = await withRetries(
+    () => getStreamRecord(args.tenantId, args.streamId),
+    [250, 1000],
+  );
   if (record?.endedAt) {
     // Relay retried live/ended — already enqueued; just nudge delivery.
     await drainUsageOutbox();
