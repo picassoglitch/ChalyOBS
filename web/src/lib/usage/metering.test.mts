@@ -4,6 +4,7 @@ import {
   backoffSeconds,
   buildStreamAdmitRequest,
   billedDestinations,
+  lockedFanout,
   buildStreamMinutesEvent,
   decideAdmission,
   drainOutbox,
@@ -462,4 +463,18 @@ test("withRetries: retries a failing read, then rethrows the last error", async 
     /fail 3/,
   );
   assert.equal(calls, 3);
+});
+
+test("relay list: a destination added mid-stream is not pushed; locked ones stay", () => {
+  const tw = { id: "d1", platform: "twitch", push_url: "rtmp://tw/app/k1" };
+  const yt = { id: "d2", platform: "youtube", push_url: "rtmp://yt/live2/k2" };
+  const added = { id: "d9", platform: "kick", push_url: "rtmps://kick/app/k9" };
+  // Admitted with twitch + youtube; kick enabled mid-stream.
+  assert.deepEqual(lockedFanout([tw, yt, added], ["d1", "d2"]), [tw, yt]);
+  // youtube disabled mid-stream: it may stop; nothing new starts.
+  assert.deepEqual(lockedFanout([tw, added], ["d1", "d2"]), [tw]);
+  // No admission row for this stream_id: nothing.
+  assert.deepEqual(lockedFanout([tw, added], undefined), []);
+  // Admitted before the set was stored: today's list until it ends.
+  assert.deepEqual(lockedFanout([tw, added], null), [tw, added]);
 });
