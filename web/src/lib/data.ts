@@ -552,6 +552,8 @@ export interface StreamRecord {
   admittedAt: string | null;
   startedAt: string | null;
   endedAt: string | null;
+  /** Fan-out destinations locked at authorize (null: admitted before 0027). */
+  destinations: number | null;
 }
 
 /** One row per stream session (stream_id from mintStreamId), holding the
@@ -561,6 +563,7 @@ export async function recordStreamAdmission(args: {
   tenantId: string;
   reservationId: string | null;
   lane: string | null;
+  destinations: number;
 }): Promise<boolean> {
   try {
     const db = getSupabaseAdmin();
@@ -570,6 +573,7 @@ export async function recordStreamAdmission(args: {
         tenant_id: args.tenantId,
         reservation_id: args.reservationId,
         lane: args.lane,
+        destinations: args.destinations,
         admitted_at: new Date().toISOString(),
       },
       { onConflict: "stream_id" },
@@ -592,7 +596,7 @@ export async function getStreamRecord(
   const db = getSupabaseAdmin();
   const { data, error } = await db
     .from("chalybobs_streams")
-    .select("reservation_id, admitted_at, started_at, ended_at")
+    .select("reservation_id, admitted_at, started_at, ended_at, destinations")
     .eq("tenant_id", tenantId)
     .eq("stream_id", streamId)
     .maybeSingle();
@@ -605,6 +609,7 @@ export async function getStreamRecord(
     admittedAt: (data.admitted_at as string | null) ?? null,
     startedAt: (data.started_at as string | null) ?? null,
     endedAt: (data.ended_at as string | null) ?? null,
+    destinations: (data.destinations as number | null) ?? null,
   };
 }
 

@@ -8,6 +8,7 @@ import {
 import { getHubClient } from "./hub";
 import {
   buildStreamAdmitRequest,
+  billedDestinations,
   buildStreamMinutesEvent,
   decideAdmission,
   streamDurationSeconds,
@@ -32,6 +33,11 @@ export async function admitStream(
   streamId: string,
 ): Promise<AdmissionDecision> {
   const { client, misconfigured } = getHubClient();
+  // Price locked at authorize: reserve for these copies and bill the same
+  // count at live/ended, whatever changes mid-stream.
+  const destinations = await getFanoutDestinations(tenantId)
+    .then((d) => d.length)
+    .catch(() => 1);
   let decision: AdmissionDecision;
   if (!client) {
     decision = decideAdmission(misconfigured ? "misconfigured" : "disabled");
@@ -40,7 +46,7 @@ export async function admitStream(
       console.warn("[usage] CHALYB_BASE_URL unset — live streams are NOT admitted or metered (dev mode)");
     }
   } else {
-    const res = await client.admit(buildStreamAdmitRequest({ tenantId, streamId }));
+    const res = await client.admit(buildStreamAdmitRequest({ tenantId, streamId, destinations }));
     if (!res.ok) {
       console.error(
         `[usage] admit failed for stream ${streamId} (failing closed): ${res.status ?? "network"} ${res.message}`,
@@ -55,6 +61,7 @@ export async function admitStream(
       tenantId,
       reservationId: decision.reservationId,
       lane: decision.lane,
+      destinations,
     });
     if (!stored && decision.reservationId) {
       // The stream still goes out (the hub admitted it), but live/ended
@@ -95,10 +102,8 @@ export async function finalizeStream(args: {
     now,
   });
   const reservationId = record?.reservationId ?? null;
-  // Egress scales with fan-out: one copy per enabled destination.
-  const destinations = await getFanoutDestinations(args.tenantId)
-    .then((d) => d.length)
-    .catch(() => 1);
+  // The copies locked at authorize, not today's destination list.
+  const destinations = billedDestinations(record?.destinations);
   if (!record) {
     console.warn(
       `[usage] live/ended for unknown stream ${args.streamId} — reporting without reservation`,

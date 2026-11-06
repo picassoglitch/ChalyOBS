@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   backoffSeconds,
   buildStreamAdmitRequest,
+  billedDestinations,
   buildStreamMinutesEvent,
   decideAdmission,
   drainOutbox,
@@ -25,6 +26,39 @@ test("admit request: stream class, stable job id, no boost", () => {
   assert.equal(req.boost, false);
   assert.equal(req.ttl_seconds, STREAM_RESERVATION_TTL_SECONDS);
   assert.ok(Number.isInteger(req.est_tokens) && req.est_tokens > 0);
+});
+
+test("admit request: reserves one hour at the fan-out it will bill", () => {
+  const one = buildStreamAdmitRequest({ tenantId: "u1", streamId: "s" }).est_tokens;
+  const three = buildStreamAdmitRequest({ tenantId: "u1", streamId: "s", destinations: 3 }).est_tokens;
+  const billed3h = Math.ceil(
+    buildStreamMinutesEvent({ streamId: "s", durationS: 3600, reservationId: null, occurredAt: new Date(), destinations: 3 })
+      .cost_usd_micros / 4,
+  );
+  assert.equal(three, billed3h);
+  assert.equal(three, 3 * one);
+  // No destination enabled still reserves one copy, as it is billed.
+  assert.equal(buildStreamAdmitRequest({ tenantId: "u1", streamId: "s", destinations: 0 }).est_tokens, one);
+});
+
+test("fan-out locked at authorize: destinations change mid-stream, charge equals reservation", () => {
+  // Authorize with 3 destinations enabled; the count is stored on the stream row.
+  const reserved = buildStreamAdmitRequest({ tenantId: "u1", streamId: "s", destinations: 3 }).est_tokens;
+  const lockedOnRow = 3;
+  // Mid-stream the user disables 2 (or adds 4): live/ended bills the locked count.
+  const charged = Math.ceil(
+    buildStreamMinutesEvent({
+      streamId: "s",
+      durationS: 3600,
+      reservationId: "r1",
+      occurredAt: new Date(),
+      destinations: billedDestinations(lockedOnRow),
+    }).cost_usd_micros / 4,
+  );
+  assert.equal(charged, reserved);
+  // Admitted before the column existed: one copy.
+  assert.equal(billedDestinations(null), 1);
+  assert.equal(billedDestinations(0), 1);
 });
 
 test("decideAdmission: dev (no hub) allows unmetered", () => {
