@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ChalyOBS — Multistream + Clips",
+  title: "Chalyb En vivo",
   description:
-    "Empareja tu cámara con ChalyOBS para multistream a Kick / Twitch / YouTube / TikTok / Restream con chat unificado y ChalyClip.",
+    "Transmite una vez desde OBS o tu cámara y sale en YouTube, Twitch, Kick, TikTok y Restream a la vez.",
 };
 
 export default function RootLayout({

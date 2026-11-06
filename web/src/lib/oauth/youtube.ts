@@ -130,7 +130,7 @@ async function fetchConnection(
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({
-        snippet: { title: "ChalyOBS" },
+        snippet: { title: "Chalyb" },
         cdn: {
           ingestionType: "rtmp",
           resolution: "variable",
