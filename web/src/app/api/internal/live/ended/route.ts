@@ -40,12 +40,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const durationS =
     typeof body.duration_s === "number" ? body.duration_s : undefined;
 
+  let finalized = true;
   try {
     await finalizeStream({ tenantId, streamId, reportedDurationS: durationS });
   } catch (e) {
-    // Never fail the relay webhook; the outbox/logs carry the detail.
+    finalized = false;
+    // Usage/settle may be missing for this stream. Logged with what a
+    // manual replay needs; 503 so the relay reports the webhook as failed.
     console.error(
-      `[usage] finalize failed for stream ${streamId}: ${e instanceof Error ? e.message : String(e)}`,
+      `[usage] FINALIZE FAILED — this stream may be unbilled/unsettled: stream=${streamId} tenant=${tenantId} duration_s=${durationS ?? "-"}: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
 
@@ -55,5 +58,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await chalybclipEnded({ streamId, tenantId, durationS });
   }
 
+  if (!finalized) return NextResponse.json({ error: "finalize_failed" }, { status: 503 });
   return new NextResponse(null, { status: 204 });
 }

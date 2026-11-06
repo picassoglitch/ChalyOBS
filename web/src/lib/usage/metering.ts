@@ -384,3 +384,20 @@ export async function drainOutbox(
   }
   return stats;
 }
+
+/** Run `fn`, retrying after each delay in `delaysMs` when it throws; the
+ *  last error is rethrown. For short-lived reads inside a webhook. */
+export async function withRetries<T>(
+  fn: () => Promise<T>,
+  delaysMs: readonly number[],
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i >= delaysMs.length) throw e;
+      await sleep(delaysMs[i]);
+    }
+  }
+}
