@@ -15,6 +15,7 @@ import { normalizeBroadcastMeta, PLATFORM_META, PLATFORM_ORDER } from "../destin
 import { isFullAccessTier } from "../tier.ts";
 import { HUB_API_AUD, HUB_PREVIEW_AUD, type HubClaims, verifyHubBearer } from "./auth.ts";
 import { proxyPreview } from "../preview-proxy.ts";
+import { isAllowedIngestUrl as isPushableIngestUrl } from "../push-url.ts";
 
 type Dest = DestinationConfig & { id: string };
 
@@ -84,17 +85,9 @@ function asObject(v: unknown): Record<string, unknown> | null {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
 
-/** "" (cleared) or an rtmp/rtmps/srt URL with a host: the relay feeds this
- *  straight to ffmpeg, which would also open file:/http:/pipe:. */
+/** "" (cleared) or a URL the relay may push to (push-url.ts). */
 export function isAllowedIngestUrl(url: string): boolean {
-  const t = url.trim();
-  if (t === "") return true;
-  try {
-    const u = new URL(t);
-    return ["rtmp:", "rtmps:", "srt:"].includes(u.protocol.toLowerCase()) && u.hostname.length > 0;
-  } catch {
-    return false;
-  }
+  return url.trim() === "" || isPushableIngestUrl(url);
 }
 
 export function isBroadcastPlatform(v: unknown): v is PlatformId {
