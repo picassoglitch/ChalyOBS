@@ -120,7 +120,8 @@ test("isPermanentFailure: only the hub rejecting the payload; config 4xx retry",
   assert.equal(isPermanentFailure(401, '{"error":"missing bearer token"}'), false);
   assert.equal(isPermanentFailure(403, '{"error":"invalid bearer token"}'), false);
   assert.equal(isPermanentFailure(404, '{"error":"unknown engine: chalybobs"}'), false);
-  assert.equal(isPermanentFailure(404, '{"error":"unknown user_id"}'), false);
+  // The account is gone: retrying never ends.
+  assert.equal(isPermanentFailure(404, '{"error":"unknown user_id"}'), true);
   assert.equal(isPermanentFailure(404, "<html>404: This page could not be found</html>"), false);
   assert.equal(isPermanentFailure(400, '{"ok":false,"error":"engine not registered: chalybobs"}', "settle"), false);
   // The settle route's own 404: that reservation doesn't exist.
@@ -297,7 +298,6 @@ for (const [status, body] of [
   [401, '{"error":"missing bearer token"}'],
   [403, '{"error":"invalid bearer token"}'],
   [404, '{"error":"unknown engine: chalybobs"}'],
-  [404, '{"error":"unknown user_id"}'],
   [404, "<html>This page could not be found</html>"],
 ] as const) {
   test(`drain: hub ${status} ${body.slice(0, 30)} is config — retried, never dead, settle held`, async () => {
@@ -315,6 +315,19 @@ for (const [status, body] of [
   });
 }
 
+test("drain: unknown user — usage goes dead and the settle still closes the reservation", async () => {
+  const { store, state } = memStore([usageRow(1, "r1"), settleRow(2, "r1")]);
+  const stats = await drainOutbox(
+    store,
+    async (row) =>
+      row.kind === "usage" ? { ok: false, status: 404, message: '{"error":"unknown user_id"}' } : { ok: true },
+    { now: NOW, log: () => {} },
+  );
+  assert.deepEqual(stats, { sent: 1, retried: 0, dead: 1, skipped: 0 });
+  assert.equal(state.get(1)!.status, "dead");
+  assert.equal(state.get(2)!.status, "sent");
+});
+
 test("drain: a row another drain already claimed is skipped (no double send)", async () => {
   const rows = [usageRow(1, "r1"), settleRow(2, "r1")];
   const { store } = memStore(rows);
@@ -330,6 +343,43 @@ test("drain: a row another drain already claimed is skipped (no double send)", a
     drainOutbox(store, send, { now: NOW, log: () => {} }),
   ]);
   assert.deepEqual(sent.sort(), [1, 2]);
+});
+
+test("drain: leases start at claim time, so a slow drain's later rows stay leased", async () => {
+  const rows = [usageRow(1, null), usageRow(2, null), usageRow(3, null)];
+  const { store } = memStore(rows);
+  const sent: number[] = [];
+  let t = NOW.getTime();
+  let drainB: Promise<unknown> | null = null;
+  const sendA = async (row: OutboxRow) => {
+    sent.push(row.id);
+    t += 100_000; // each hub call takes 100 s
+    if (row.id === 3) {
+      // While row 3 is in flight (claimed at +200 s), another drain starts at +250 s.
+      drainB = drainOutbox(store, async (r) => (sent.push(r.id), { ok: true }), {
+        now: new Date(NOW.getTime() + 250_000),
+        log: () => {},
+      });
+      await drainB;
+    }
+    return { ok: true } as const;
+  };
+  await drainOutbox(store, sendA, { now: NOW, clock: () => new Date(t), log: () => {} });
+  assert.deepEqual(sent, [1, 2, 3]);
+});
+
+test("drain: retry backoff counts from when the hub answered", async () => {
+  const { store, state } = memStore([usageRow(1, null)]);
+  let t = NOW.getTime();
+  await drainOutbox(
+    store,
+    async () => {
+      t += 60_000;
+      return { ok: false, status: 503, message: "down" };
+    },
+    { now: NOW, clock: () => new Date(t), log: () => {} },
+  );
+  assert.equal(state.get(1)!.next!.getTime(), NOW.getTime() + 60_000 + 30_000);
 });
 
 test("decideAdmission: hub 4xx — reason honoured, unknown user, config", () => {

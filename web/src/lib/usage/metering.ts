@@ -238,8 +238,10 @@ export interface OutboxRow {
 }
 
 export interface OutboxStore {
-  /** Pending rows in insertion order (id asc), due or not. */
-  listPending(limit: number): Promise<OutboxRow[]>;
+  /** Due pending rows (next_attempt_at <= now) in insertion order (id asc),
+   *  plus any pending `usage` row of a reservation whose `settle` is in that
+   *  set, due or not, so the drain can hold the settle back. */
+  listPending(limit: number, now: Date): Promise<OutboxRow[]>;
   /** Atomically take a due pending row for this drain: push its
    *  next_attempt_at to `leaseUntil` only if it is still pending and due
    *  at `now`. False = another drain took it first (or it changed). */
@@ -260,8 +262,9 @@ const PAYLOAD_REJECTIONS = new Set([400, 409, 413, 422]);
 
 /**
  * Is this failure a permanent rejection of THIS row (mark it dead)?
- * Only when the hub rejected the payload itself. 401/403 (a rotated or
- * mismatched token), 404 (unknown engine/user, a wrong base URL's 404 page),
+ * Only when the hub rejected the payload itself, or the user no longer
+ * exists (404 unknown user_id on usage). 401/403 (a rotated or
+ * mismatched token), 404 (unknown engine, a wrong base URL's 404 page),
  * "engine not registered" and any other 4xx are our config: the same row
  * goes through once it's fixed, so it is retried with backoff instead —
  * dead-lettering it would mean that usage is never billed.
@@ -275,6 +278,9 @@ export function isPermanentFailure(
   const error = (hubErrorBody(message).error ?? "").toLowerCase();
   if (error.includes("engine")) return false;
   if (kind === "settle" && status === 404) return error === "unknown reservation";
+  // A deleted Chalyb account: the hub answers this before validating, so a
+  // retry never ends and would hold the reservation's settle forever.
+  if (kind === "usage" && status === 404 && error === "unknown user_id") return true;
   return PAYLOAD_REJECTIONS.has(status);
 }
 
@@ -307,14 +313,17 @@ export interface DrainStats {
 export async function drainOutbox(
   store: OutboxStore,
   send: OutboxSend,
-  opts: { now?: Date; limit?: number; log?: (msg: string) => void } = {},
+  opts: { now?: Date; clock?: () => Date; limit?: number; log?: (msg: string) => void } = {},
 ): Promise<DrainStats> {
   const now = opts.now ?? new Date();
+  // Leases and backoff use the time of the claim/answer, not the drain start:
+  // 50 sends at up to 5 s each would otherwise lease later rows in the past.
+  const clock = opts.clock ?? (opts.now ? () => now : () => new Date());
   const log = opts.log ?? ((m: string) => console.error(m));
   const stats: DrainStats = { sent: 0, retried: 0, dead: 0, skipped: 0 };
   const blocked = new Set<string>();
 
-  const rows = await store.listPending(opts.limit ?? 50);
+  const rows = await store.listPending(opts.limit ?? 50, now);
   for (const row of rows) {
     const res = row.reservation_id;
     if (row.kind === "settle" && res && blocked.has(res)) {
@@ -327,8 +336,9 @@ export async function drainOutbox(
       continue;
     }
 
-    const leaseUntil = new Date(now.getTime() + LEASE_SECONDS * 1000);
-    if (!(await store.claim(row.id, now, leaseUntil))) {
+    const claimAt = clock();
+    const leaseUntil = new Date(claimAt.getTime() + LEASE_SECONDS * 1000);
+    if (!(await store.claim(row.id, claimAt, leaseUntil))) {
       // Another drain (live/ended on another instance, the scheduler) is
       // delivering it right now.
       if (row.kind === "usage" && res) blocked.add(res);
@@ -359,7 +369,7 @@ export async function drainOutbox(
       stats.dead++;
       continue;
     }
-    const next = new Date(now.getTime() + backoffSeconds(attempts) * 1000);
+    const next = new Date(clock().getTime() + backoffSeconds(attempts) * 1000);
     const hint = !isConfigFailure(result.status)
       ? ""
       : result.status === 401 || result.status === 403
