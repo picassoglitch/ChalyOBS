@@ -9,7 +9,7 @@ interface Props {
   /** HLS manifest URL, or null when the relay HLS base isn't configured. */
   hlsUrl: string | null;
   /** Rendered INSIDE the player while there's no signal (Restream-style
-   *  "Connect your encoder" card). Disappears as soon as the feed shows. */
+   *  "Conecta tu encoder" card). Disappears as soon as the feed shows. */
   offlineContent?: ReactNode;
 }
 
@@ -35,10 +35,9 @@ export function StreamPreview({ hlsUrl, offlineContent }: Props) {
   const [attempt, setAttempt] = useState(0); // bump to force a full reconnect
 
   useEffect(() => {
-    if (!hlsUrl) {
-      setState("unconfigured");
-      return;
-    }
+    // No URL → the initial state is already "unconfigured" (hlsUrl is a
+    // per-deploy constant, it never flips at runtime).
+    if (!hlsUrl) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -77,10 +76,9 @@ export function StreamPreview({ hlsUrl, offlineContent }: Props) {
       };
     }
 
-    if (!Hls.isSupported()) {
-      setState("connecting");
-      return;
-    }
+    // No MSE and no native HLS: stay in "connecting" (the initial state, and
+    // what the Retry button sets) with the encoder card visible.
+    if (!Hls.isSupported()) return;
 
     hls = new Hls({
       // Stability over latency: LL-HLS through the proxy flaps. A few extra
@@ -163,7 +161,7 @@ export function StreamPreview({ hlsUrl, offlineContent }: Props) {
         {state === "live" && (
           <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-bad/80 text-white text-[10px] font-bold tracking-wider">
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            LIVE
+            EN VIVO
           </span>
         )}
 
@@ -204,13 +202,13 @@ export function StreamPreview({ hlsUrl, offlineContent }: Props) {
           (offlineContent ? (
             <div className="absolute inset-0 overflow-y-auto">
               <span className="absolute top-3 left-3 z-10 px-2 py-1 rounded-md bg-surface-high text-text-tertiary text-[10px] font-bold tracking-wider">
-                OFFLINE
+                FUERA DE LÍNEA
               </span>
               <div className="min-h-full flex flex-col items-center justify-center px-6 py-8">
                 <div className="w-full max-w-md">{offlineContent}</div>
                 {state === "unconfigured" && (
                   <p className="text-[10px] text-text-tertiary mt-3 text-center">
-                    Preview no disponible — el relay aún no expone HLS (
+                    Vista previa no disponible — el relay aún no expone HLS (
                     <code className="font-mono">CHALYBOBS_RELAY_INTERNAL_HLS</code>
                     ).
                   </p>
@@ -225,7 +223,7 @@ export function StreamPreview({ hlsUrl, offlineContent }: Props) {
                     <span className="w-2.5 h-2.5 rounded-full bg-text-tertiary" />
                   </div>
                   <p className="text-sm font-semibold text-text-secondary">
-                    Preview no disponible
+                    Vista previa no disponible
                   </p>
                   <p className="text-[11px] text-text-tertiary mt-1 max-w-xs">
                     El relay aún no expone HLS. Configura{" "}
@@ -241,7 +239,7 @@ export function StreamPreview({ hlsUrl, offlineContent }: Props) {
                     Esperando señal…
                   </p>
                   <p className="text-[11px] text-text-tertiary mt-1 max-w-xs">
-                    Conecta tu encoder al relay. El preview aparece unos
+                    Conecta tu encoder al relay. La vista previa aparece unos
                     segundos después de empezar a transmitir.
                   </p>
                 </>

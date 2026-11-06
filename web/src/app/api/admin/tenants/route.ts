@@ -20,6 +20,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkAdminBearer } from "@/lib/admin-auth";
 import { b64urlEncode } from "@/lib/b64url";
 import { readChalybEnv } from "@/lib/env";
+import { saveTenantTier } from "@/lib/data";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 interface ProvisionRequest {
   external_user_id?: string;
@@ -66,6 +68,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const tenant_id = body.external_user_id;
+  // Whenever Chalyb (re)provisions with a tier, refresh the stored tier (the
+  // relay-side ChalyClip gate reads it) without waiting for the next SSO.
+  if (body.tier !== undefined && isSupabaseConfigured()) {
+    await saveTenantTier(tenant_id, body.tier);
+  }
   const api_token = await deriveApiToken(tenant_id, env.sessionSecret);
 
   const response: ProvisionResponse = { tenant_id, api_token };

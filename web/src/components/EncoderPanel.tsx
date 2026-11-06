@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IngestCredentials } from "@/lib/ingest";
+import { maskStreamKey } from "@/lib/push-url";
 import { CopyIcon, RefreshIcon } from "./icons";
 
 interface EncoderPanelProps {
@@ -44,24 +45,24 @@ export function EncoderPanel({
           }`}
         >
           {isLive && <span className="w-1.5 h-1.5 rounded-full bg-bad animate-pulse" />}
-          {isLive ? "LIVE" : "OFFLINE"}
+          {isLive ? "EN VIVO" : "FUERA DE LÍNEA"}
         </span>
       )}
 
       <div className={`text-center ${embedded ? "mb-4" : "mb-5 mt-2"}`}>
         <h2 className="text-xl font-bold text-text-primary">
-          Connect your encoder
+          Conecta tu encoder
         </h2>
         <p className="text-xs text-text-tertiary mt-1">
           Copia y pega estos datos en OBS, vMix, tu Osmo o cualquier encoder RTMP.
         </p>
       </div>
 
-      <Field label="RTMP URL" value={ingest.rtmpUrl} />
+      <Field label="Servidor (URL RTMP)" value={ingest.rtmpUrl} />
 
       <div className="mt-3">
         <Field
-          label="Stream key"
+          label="Clave de transmisión (stream key)"
           value={ingest.streamKey}
           secret
           visible={keyVisible}
@@ -71,10 +72,20 @@ export function EncoderPanel({
       </div>
 
       <div className="mt-3">
-        <Field label="URL completa (cámaras de un solo campo)" value={ingest.fullRtmpUrl} />
+        {/* This URL embeds the stream key, so it follows the key's
+            show/hide state — streamers share this screen. */}
+        <Field
+          label="URL completa (cámaras de un solo campo)"
+          value={ingest.fullRtmpUrl}
+          visible={keyVisible}
+          displayOverride={
+            keyVisible ? undefined : maskStreamKey(ingest.fullRtmpUrl, ingest.streamKey)
+          }
+          onToggleVisible={() => setKeyVisible((v) => !v)}
+        />
         <p className="text-[10px] text-text-tertiary mt-1.5 leading-relaxed">
           Para DJI Osmo / Mimo, GoPro o el teléfono — que solo tienen un campo
-          de URL — pega esta. Ya incluye tu stream key.
+          de URL — pega esta. Ya incluye tu clave de transmisión.
         </p>
       </div>
 
@@ -94,18 +105,19 @@ export function EncoderPanel({
                 <b className="text-text-primary">OBS Studio:</b> Ajustes →
                 Transmisión → Servicio:{" "}
                 <code className="font-mono">Personalizado</code> → pega la{" "}
-                <b>RTMP URL</b> en «Servidor» y el <b>stream key</b> en «Clave
-                de retransmisión» → Iniciar transmisión.
+                <b>URL RTMP</b> en «Servidor» y la <b>clave de transmisión</b> en
+                «Clave de retransmisión» → Iniciar transmisión.
               </li>
               <li>
                 <b className="text-text-primary">vMix:</b> Settings → Streaming
                 → Destination: <code className="font-mono">Custom RTMP
-                Server</code> → URL + Stream Name or Key → Start.
+                Server</code> → pega la URL en «URL» y la clave en «Stream
+                Name or Key» → Start.
               </li>
               <li>
                 <b className="text-text-primary">Zoom:</b> requiere plan con
                 «Custom Live Streaming»: en la reunión → Más → Transmitir en
-                vivo en servicio personalizado → pega URL y key.
+                vivo en servicio personalizado → pega la URL y la clave.
               </li>
               <li>
                 <b className="text-text-primary">Osmo / GoPro / teléfono:</b>{" "}
@@ -113,8 +125,8 @@ export function EncoderPanel({
               </li>
             </ol>
             <p className="mt-3 text-[10px] text-text-tertiary">
-              Al conectar, el preview aparece aquí en unos segundos y tu señal
-              se reenvía a todos los canales activos.
+              Al conectar, la vista previa aparece aquí en unos segundos y tu
+              señal se reenvía a todos los canales activos.
             </p>
           </div>
         )}
@@ -128,6 +140,8 @@ interface FieldProps {
   value: string;
   secret?: boolean;
   visible?: boolean;
+  /** Shown instead of `value` (copy still copies `value`). */
+  displayOverride?: string;
   onToggleVisible?: () => void;
   onRegenerate?: () => void;
 }
@@ -137,11 +151,14 @@ function Field({
   value,
   secret,
   visible,
+  displayOverride,
   onToggleVisible,
   onRegenerate,
 }: FieldProps) {
   const [copied, setCopied] = useState(false);
-  const displayValue = secret && !visible ? "•".repeat(Math.min(value.length, 40)) : value;
+  const displayValue =
+    displayOverride ??
+    (secret && !visible ? "•".repeat(Math.min(value.length, 40)) : value);
 
   return (
     <div>
@@ -152,7 +169,8 @@ function Field({
         <button
           type="button"
           onClick={() => onToggleVisible?.()}
-          disabled={!secret}
+          disabled={!onToggleVisible}
+          title={onToggleVisible ? (visible ? "Ocultar" : "Mostrar") : undefined}
           className="flex-1 text-left px-3.5 py-2.5 font-mono text-xs text-text-secondary truncate disabled:cursor-default"
         >
           {displayValue}

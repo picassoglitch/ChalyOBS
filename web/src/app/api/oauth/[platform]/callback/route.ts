@@ -17,6 +17,7 @@ import { resolvePublicOrigin } from "@/lib/env";
 import { getServerSession } from "@/lib/server-session";
 import { connectOAuthDestination } from "@/lib/data";
 import { oauthCookieName, parseOAuthCookie } from "@/lib/oauth/flow";
+import { hubOAuthForwardUrl, resolveHubBase } from "@/lib/hub-api/hub-base";
 import { getOAuthProvider } from "@/lib/oauth/providers";
 
 export async function GET(
@@ -24,6 +25,20 @@ export async function GET(
   ctx: RouteContext<"/api/oauth/[platform]/callback">,
 ): Promise<NextResponse> {
   const { platform } = await ctx.params;
+
+  // A connect started inside the Chalyb hub (state "hub.…"): hand the code
+  // back to the hub, which owns the state + PKCE verifier and completes the
+  // exchange for its own session's tenant. No engine cookie involved; the
+  // hub base comes from env only.
+  if (getOAuthProvider(platform)) {
+    const forward = hubOAuthForwardUrl(
+      platform,
+      new URL(request.url).searchParams,
+      resolveHubBase(),
+    );
+    if (forward) return NextResponse.redirect(forward, { status: 303 });
+  }
+
   const origin = resolvePublicOrigin(request);
   // /oauth/done closes the connect popup and notifies the dashboard; with
   // no opener it degrades to a /dashboard redirect with the same params.

@@ -8,6 +8,8 @@ import {
   PLATFORM_META,
   PlatformId,
 } from "./destinations";
+import { isFullAccessTier } from "./tier";
+import { buildPushUrl } from "./push-url";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -17,6 +19,7 @@ import {
  * Tables (see chalyb migration 0023):
  *   chalybobs_sessions      1 row per tenant — title, flags, ingest stream key
  *   chalybobs_destinations  N rows per tenant — one per connected platform
+ *   chalybobs_streams       1 row per stream session — hub reservation (0026)
  */
 
 export interface TenantSession {
@@ -58,7 +61,9 @@ export async function getOrCreateSession(
     return {
       title,
       isLive: data.is_live as boolean,
-      clipsEnabled: (data.clips_enabled as boolean | null) ?? true,
+      // A row without a value never forwarded to Clips (getClipsEnabled and
+      // the relay gate read null as off), so it reads as off here too.
+      clipsEnabled: (data.clips_enabled as boolean | null) ?? false,
       streamKey: data.stream_key as string,
       broadcastMeta: normalizeBroadcastMeta(data.broadcast_meta, title),
     };
@@ -67,13 +72,15 @@ export async function getOrCreateSession(
   const fresh: TenantSession = {
     title: DEFAULT_TITLE,
     isLive: false,
-    clipsEnabled: true,
+    // Sending streams to Clips is opt-in (Aldo, 2026-10-15): new tenants
+    // start with it off. Existing rows keep whatever they have.
+    clipsEnabled: false,
     streamKey: freshStreamKey(),
     broadcastMeta: normalizeBroadcastMeta(null, DEFAULT_TITLE),
   };
   // record_enabled is omitted on insert — the column keeps its DB default
   // (true). Recording isn't a user-facing toggle anymore (ChalyClip drives it).
-  await db.from("chalybobs_sessions").insert({
+  const { error } = await db.from("chalybobs_sessions").insert({
     tenant_id: tenantId,
     title: fresh.title,
     is_live: fresh.isLive,
@@ -81,6 +88,28 @@ export async function getOrCreateSession(
     stream_key: fresh.streamKey,
     broadcast_meta: fresh.broadcastMeta,
   });
+  if (error) {
+    // Lost a first-access race (SSO tier save, the dashboard and a server
+    // action can all create the row at once): another request inserted it
+    // first. Return what's stored — never a stream key the DB doesn't have,
+    // or the encoder panel would show a key the relay rejects.
+    const { data: stored } = await db
+      .from("chalybobs_sessions")
+      .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (stored) {
+      const title = stored.title as string;
+      return {
+        title,
+        isLive: stored.is_live as boolean,
+        clipsEnabled: (stored.clips_enabled as boolean | null) ?? true,
+        streamKey: stored.stream_key as string,
+        broadcastMeta: normalizeBroadcastMeta(stored.broadcast_meta, title),
+      };
+    }
+    console.error(`[sessions] create failed for tenant ${tenantId}: ${error.message}`);
+  }
   return fresh;
 }
 
@@ -131,6 +160,23 @@ export async function updateSession(
   if (patch.streamKey !== undefined) row.stream_key = patch.streamKey;
   if (patch.broadcastMeta !== undefined) row.broadcast_meta = patch.broadcastMeta;
   await db.from("chalybobs_sessions").update(row).eq("tenant_id", tenantId);
+}
+
+/** Rename the broadcast from the header: the session title AND the
+ *  composer's broadcast_meta.title, so "Actualizar títulos" opens with the
+ *  same title after a reload (normalizeBroadcastMeta prefers the blob's). */
+export async function setSessionTitle(
+  tenantId: string,
+  title: string,
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_sessions")
+    .select("broadcast_meta")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const meta = normalizeBroadcastMeta(data?.broadcast_meta ?? null, title);
+  await updateSession(tenantId, { title, broadcastMeta: { ...meta, title } });
 }
 
 export async function regenerateStreamKey(tenantId: string): Promise<string> {
@@ -499,6 +545,136 @@ export function tenantFromStreamId(streamId: string): string | null {
   return streamId.slice(0, i);
 }
 
+// ── Stream sessions + usage reservations (migration 0026) ───────────────────
+
+export interface StreamRecord {
+  reservationId: string | null;
+  admittedAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+/** One row per stream session (stream_id from mintStreamId), holding the
+ *  hub reservation admitted in live/authorize. Returns false on failure. */
+export async function recordStreamAdmission(args: {
+  streamId: string;
+  tenantId: string;
+  reservationId: string | null;
+  lane: string | null;
+}): Promise<boolean> {
+  try {
+    const db = getSupabaseAdmin();
+    const { error } = await db.from("chalybobs_streams").upsert(
+      {
+        stream_id: args.streamId,
+        tenant_id: args.tenantId,
+        reservation_id: args.reservationId,
+        lane: args.lane,
+        admitted_at: new Date().toISOString(),
+      },
+      { onConflict: "stream_id" },
+    );
+    if (error) {
+      console.error(`[streams] admission insert failed: ${error.message}`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`[streams] admission insert failed: ${e instanceof Error ? e.message : String(e)}`);
+    return false;
+  }
+}
+
+export async function getStreamRecord(
+  tenantId: string,
+  streamId: string,
+): Promise<StreamRecord | null> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_streams")
+    .select("reservation_id, admitted_at, started_at, ended_at")
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    reservationId: (data.reservation_id as string | null) ?? null,
+    admittedAt: (data.admitted_at as string | null) ?? null,
+    startedAt: (data.started_at as string | null) ?? null,
+    endedAt: (data.ended_at as string | null) ?? null,
+  };
+}
+
+/** First live/started wins (duration fallback when the relay sends no
+ *  duration_s on live/ended). */
+export async function markStreamStarted(
+  tenantId: string,
+  streamId: string,
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  await db
+    .from("chalybobs_streams")
+    .update({ started_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .is("started_at", null);
+}
+
+export async function markStreamEnded(
+  tenantId: string,
+  streamId: string,
+  durationS: number,
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  await db
+    .from("chalybobs_streams")
+    .update({ ended_at: new Date().toISOString(), duration_s: durationS })
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId);
+}
+
+// ── Tier (persisted from SSO / provisioning, migration 0026) ────────────────
+
+/** Persist the tier Chalyb last told us about (SSO launch or tenant
+ *  provisioning), so relay callbacks — which carry no user cookie — can
+ *  re-check it. Best-effort: never blocks login. */
+export async function saveTenantTier(
+  tenantId: string,
+  tier: string | null,
+): Promise<void> {
+  try {
+    await getOrCreateSession(tenantId); // ensure row exists
+    const db = getSupabaseAdmin();
+    const { error } = await db
+      .from("chalybobs_sessions")
+      .update({ tier, tier_updated_at: new Date().toISOString() })
+      .eq("tenant_id", tenantId);
+    if (error) console.error(`[tier] save failed: ${error.message}`);
+  } catch (e) {
+    console.error(`[tier] save failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * Relay-side ChalyClip gate: the connection must be on AND the tier we last
+ * stored must still be full-access. A user who was downgraded after turning
+ * clips on (clips_enabled stays true) is stopped here. No stored tier (never
+ * logged in since migration 0026) fails closed.
+ */
+export async function getClipsForwardingAllowed(tenantId: string): Promise<boolean> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_sessions")
+    .select("clips_enabled, tier")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error || !data) return false;
+  return (
+    ((data.clips_enabled as boolean | null) ?? false) &&
+    isFullAccessTier(data.tier as string | null)
+  );
+}
+
 /** Fan-out targets for the relay: enabled + fully-configured destinations,
  *  each as a complete push URL the relay feeds to `ffmpeg -c copy`
  *  (rtmp/rtmps → flv muxer, srt → mpegts — the relay picks by scheme). */
@@ -511,25 +687,50 @@ export async function getFanoutDestinations(
     .select("platform_id, ingest_url, stream_key, enabled")
     .eq("tenant_id", tenantId)
     .eq("enabled", true);
-  return (data ?? [])
-    .filter(
-      (r) =>
-        ((r.ingest_url as string) ?? "").trim().length > 0 &&
-        ((r.stream_key as string) ?? "").trim().length > 0,
-    )
-    .map((r) => {
-      const base = (r.ingest_url as string).trim().replace(/\/+$/, "");
-      const key = (r.stream_key as string).trim();
-      // SRT carries the credential as ?streamid=..., not as a path
-      // segment. If the user's URL already embeds it, it's complete as-is.
-      const pushUrl = base.startsWith("srt://")
-        ? base.includes("streamid=")
-          ? base
-          : `${base}${base.includes("?") ? "&" : "?"}streamid=${key}`
-        : `${base}/${key}`;
-      return {
-        platform: r.platform_id as string,
-        push_url: pushUrl,
-      };
-    });
+  // buildPushUrl drops anything the relay must not push to (non rtmp/rtmps/
+  // srt schemes, missing key): those legs would be ffmpeg writing to a
+  // file: or http: target from inside the relay VM.
+  const out: { platform: string; push_url: string }[] = [];
+  for (const r of data ?? []) {
+    const pushUrl = buildPushUrl(
+      (r.ingest_url as string | null) ?? "",
+      (r.stream_key as string | null) ?? "",
+    );
+    if (pushUrl) out.push({ platform: r.platform_id as string, push_url: pushUrl });
+  }
+  return out;
+}
+
+/** The tier last persisted for the tenant (null when none / no row). Lets
+ *  the hub API skip the write when the tier didn't change. */
+export async function getStoredTier(tenantId: string): Promise<string | null> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_sessions")
+    .select("tier")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  return (data?.tier as string | null | undefined) ?? null;
+}
+
+/** The tenant's past streams (ones the relay reported started), newest
+ *  first — "Mis transmisiones" in the hub. */
+export async function listStreams(
+  tenantId: string,
+  limit: number,
+): Promise<{ streamId: string; startedAt: string; endedAt: string | null; durationS: number | null }[]> {
+  const db = getSupabaseAdmin();
+  const { data } = await db
+    .from("chalybobs_streams")
+    .select("stream_id, started_at, ended_at, duration_s")
+    .eq("tenant_id", tenantId)
+    .not("started_at", "is", null)
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((r) => ({
+    streamId: r.stream_id as string,
+    startedAt: r.started_at as string,
+    endedAt: (r.ended_at as string | null) ?? null,
+    durationS: (r.duration_s as number | null) ?? null,
+  }));
 }

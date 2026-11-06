@@ -13,7 +13,7 @@ interface LoginPageProps {
  * operators see what to set in Vercel without having to read logs.
  */
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { next, error } = await searchParams;
+  const { error } = await searchParams;
   const env = readChalybEnv();
   const missing = missingChalybEnvVars();
   const configured = env !== null;
@@ -24,7 +24,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold mb-2">Entrar a ChalyOBS</h1>
           <p className="text-text-tertiary text-sm">
-            Autenticate desde Chalyb.
+            Inicia sesión desde Chalyb.
           </p>
         </div>
 
@@ -33,8 +33,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <strong className="text-warn block mb-1">
               Servicio no configurado.
             </strong>
-            Faltan variables en Vercel. ChalyOBS no puede iniciar sesión hasta
-            que estén definidas:
+            Faltan variables de entorno en el servidor. ChalyOBS no puede
+            iniciar sesión hasta que estén definidas:
             <ul className="mt-1 ml-4 list-disc font-mono text-[11px]">
               {missing.map((v) => (
                 <li key={v}>{v}</li>
@@ -45,7 +45,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {configured && (
           <a
-            href={buildChalybLoginUrl(env, next)}
+            href={buildChalybLoginUrl(env)}
             className="w-full flex items-center justify-center gap-3 py-3 rounded-lg bg-accent text-white hover:opacity-90 transition text-sm font-semibold"
           >
             Continuar con Chalyb →
@@ -54,8 +54,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {error && (
           <div className="mt-4 text-xs text-bad bg-bad/10 border border-bad/30 rounded-md p-2 break-words">
-            <strong>SSO error:</strong>{" "}
-            <span className="font-mono">{decodeURIComponent(error)}</span>
+            <strong>No pudimos iniciar tu sesión.</strong>{" "}
+            {ssoErrorText(error)}{" "}
+            {/* Raw reason kept for operators; searchParams arrive decoded —
+                decoding again threw URIError on a stray "%". */}
+            <span className="font-mono opacity-70">({error})</span>
           </div>
         )}
 
@@ -67,16 +70,29 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   );
 }
 
+/** Spanish copy for the /auth/sso failure reasons (SsoTokenError messages
+ *  and the route's own codes). Unknown reasons fall back to a generic line. */
+function ssoErrorText(reason: string): string {
+  switch (reason) {
+    case "token expired":
+      return "El enlace de acceso venció. Vuelve a entrar desde Chalyb.";
+    case "missing_token":
+    case "empty token":
+      return "Falta el enlace de acceso. Entra desde Chalyb.";
+    case "service_not_configured":
+      return "El servicio no está configurado todavía.";
+    default:
+      return "El enlace de acceso no es válido. Vuelve a entrar desde Chalyb.";
+  }
+}
+
 function buildChalybLoginUrl(
   env: NonNullable<ReturnType<typeof readChalybEnv>>,
-  next: string | undefined,
 ): string {
-  const returnTo = new URL(next ?? "/dashboard", env.publicUrl).toString();
-  const url = new URL(env.chalybLoginUrl);
-  // Chalyb's login accepts a return_to that, after auth, becomes the
-  // base used to build the SSO launch URL. Naming mirrors what Chalyb's
-  // launch URL builder expects.
-  url.searchParams.set("engine", "chalybobs");
-  url.searchParams.set("return_to", returnTo);
-  return url.toString();
+  // The hub's launcher signs the person in if needed (/sign-in?next=…), then
+  // mints the SSO token and lands them on our /auth/sso → /dashboard. Its
+  // /login → /sign-in ignores engine/return_to, so linking there left people
+  // on chalyb.com instead of coming back here.
+  const hub = process.env.CHALYB_BASE_URL?.trim() || new URL(env.chalybLoginUrl).origin;
+  return new URL("/auth/launch/chalybobs", hub).toString();
 }
