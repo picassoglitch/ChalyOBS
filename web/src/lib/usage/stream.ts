@@ -33,11 +33,18 @@ export async function admitStream(
   streamId: string,
 ): Promise<AdmissionDecision> {
   const { client, misconfigured } = getHubClient();
-  // Price locked at authorize: reserve for these copies and bill the same
-  // count at live/ended, whatever changes mid-stream.
-  const destinations = await getFanoutDestinations(tenantId)
-    .then((d) => d.length)
-    .catch(() => 1);
+  // Destinations and price locked at authorize: the relay only gets this set
+  // for the stream, and live/ended bills this count. Unreadable = refuse.
+  let destinationIds: string[];
+  try {
+    destinationIds = (await getFanoutDestinations(tenantId)).map((d) => d.id);
+  } catch (e) {
+    console.error(
+      `[usage] refusing stream ${streamId}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return { allow: false, error: "usage_unavailable", reason: "destinations_unavailable" };
+  }
+  const destinations = destinationIds.length;
   let decision: AdmissionDecision;
   if (!client) {
     decision = decideAdmission(misconfigured ? "misconfigured" : "disabled");
@@ -62,14 +69,23 @@ export async function admitStream(
       reservationId: decision.reservationId,
       lane: decision.lane,
       destinations,
+      destinationIds,
     });
-    if (!stored && decision.reservationId) {
-      // The stream still goes out (the hub admitted it), but live/ended
-      // won't find the reservation: usage is reported without it and the
-      // reservation lapses at its TTL.
+    if (!stored) {
+      // Without the row the relay gets no destinations and live/ended can't
+      // bill: refuse, and hand the hold back instead of letting it sit 8 h.
       console.error(
-        `[usage] could not persist reservation ${decision.reservationId} for stream ${streamId}`,
+        `[usage] refusing stream ${streamId}: could not persist its admission (reservation ${decision.reservationId ?? "-"})`,
       );
+      if (client && decision.reservationId) {
+        const released = await client.settle(decision.reservationId, "cancelled");
+        if (!released.ok) {
+          console.error(
+            `[usage] could not release reservation ${decision.reservationId}: ${released.status ?? "network"} ${released.message}`,
+          );
+        }
+      }
+      return { allow: false, error: "usage_unavailable", reason: "admission_not_stored" };
     }
   }
   return decision;
@@ -90,7 +106,12 @@ export async function finalizeStream(args: {
     () => getStreamRecord(args.tenantId, args.streamId),
     [250, 1000],
   );
-  if (record?.endedAt) {
+  if (!record) {
+    // Every admitted stream has a row (admission refuses otherwise): a
+    // missing one can't be priced or settled, so don't guess one copy.
+    throw new Error(`live/ended for unknown stream ${args.streamId}: no admission row`);
+  }
+  if (record.endedAt) {
     // Relay retried live/ended — already enqueued; just nudge delivery.
     await drainUsageOutbox();
     return;
@@ -98,17 +119,13 @@ export async function finalizeStream(args: {
 
   const durationS = streamDurationSeconds({
     reportedS: args.reportedDurationS,
-    startedAt: record?.startedAt ?? record?.admittedAt ?? null,
+    startedAt: record.startedAt ?? record.admittedAt ?? null,
     now,
   });
-  const reservationId = record?.reservationId ?? null;
-  // The copies locked at authorize, not today's destination list.
-  const destinations = billedDestinations(record?.destinations);
-  if (!record) {
-    console.warn(
-      `[usage] live/ended for unknown stream ${args.streamId} — reporting without reservation`,
-    );
-  }
+  const reservationId = record.reservationId;
+  // The copies locked at authorize, not today's destination list. Rows
+  // admitted before 0027 have no count and bill one copy.
+  const destinations = billedDestinations(record.destinations);
 
   const rows: OutboxInsert[] = [
     {

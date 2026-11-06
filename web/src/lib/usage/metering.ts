@@ -69,6 +69,20 @@ export function billedDestinations(locked: number | null | undefined): number {
   return Math.max(1, Math.floor(locked ?? 1));
 }
 
+/** What the relay may push for a stream: today's enabled destinations
+ *  narrowed to the set locked at authorize. `locked === null` (admitted
+ *  before the set was stored) keeps today's list; `undefined` (no such
+ *  stream) gets nothing. */
+export function lockedFanout<T extends { id: string }>(
+  current: readonly T[],
+  locked: readonly string[] | null | undefined,
+): T[] {
+  if (locked === undefined) return [];
+  if (locked === null) return [...current];
+  const allowed = new Set(locked);
+  return current.filter((d) => allowed.has(d.id));
+}
+
 export function buildStreamAdmitRequest(args: {
   tenantId: string;
   streamId: string;

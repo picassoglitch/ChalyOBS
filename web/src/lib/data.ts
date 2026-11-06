@@ -564,6 +564,7 @@ export async function recordStreamAdmission(args: {
   reservationId: string | null;
   lane: string | null;
   destinations: number;
+  destinationIds: string[];
 }): Promise<boolean> {
   try {
     const db = getSupabaseAdmin();
@@ -574,6 +575,7 @@ export async function recordStreamAdmission(args: {
         reservation_id: args.reservationId,
         lane: args.lane,
         destinations: args.destinations,
+        destination_ids: args.destinationIds,
         admitted_at: new Date().toISOString(),
       },
       { onConflict: "stream_id" },
@@ -683,30 +685,54 @@ export async function getClipsForwardingAllowed(tenantId: string): Promise<boole
   );
 }
 
+export interface FanoutDestination {
+  id: string;
+  platform: string;
+  push_url: string;
+}
+
 /** Fan-out targets for the relay: enabled + fully-configured destinations,
  *  each as a complete push URL the relay feeds to `ffmpeg -c copy`
- *  (rtmp/rtmps → flv muxer, srt → mpegts — the relay picks by scheme). */
-export async function getFanoutDestinations(
-  tenantId: string,
-): Promise<{ platform: string; push_url: string }[]> {
+ *  (rtmp/rtmps → flv muxer, srt → mpegts — the relay picks by scheme).
+ *  Throws on a failed read: an error is not "no destinations". */
+export async function getFanoutDestinations(tenantId: string): Promise<FanoutDestination[]> {
   const db = getSupabaseAdmin();
-  const { data } = await db
+  const { data, error } = await db
     .from("chalybobs_destinations")
-    .select("platform_id, ingest_url, stream_key, enabled")
+    .select("id, platform_id, ingest_url, stream_key, enabled")
     .eq("tenant_id", tenantId)
     .eq("enabled", true);
+  if (error) throw new Error(`destinations read failed for ${tenantId}: ${error.message}`);
   // buildPushUrl drops anything the relay must not push to (non rtmp/rtmps/
   // srt schemes, missing key): those legs would be ffmpeg writing to a
   // file: or http: target from inside the relay VM.
-  const out: { platform: string; push_url: string }[] = [];
+  const out: FanoutDestination[] = [];
   for (const r of data ?? []) {
     const pushUrl = buildPushUrl(
       (r.ingest_url as string | null) ?? "",
       (r.stream_key as string | null) ?? "",
     );
-    if (pushUrl) out.push({ platform: r.platform_id as string, push_url: pushUrl });
+    if (pushUrl) out.push({ id: String(r.id), platform: r.platform_id as string, push_url: pushUrl });
   }
   return out;
+}
+
+/** The destination ids locked on a stream at authorize. `undefined` = no
+ *  such stream; `null` = admitted before 0028. Throws on a failed read. */
+export async function getStreamDestinationIds(
+  tenantId: string,
+  streamId: string,
+): Promise<string[] | null | undefined> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("chalybobs_streams")
+    .select("destination_ids")
+    .eq("tenant_id", tenantId)
+    .eq("stream_id", streamId)
+    .maybeSingle();
+  if (error) throw new Error(`stream destinations read failed for ${streamId}: ${error.message}`);
+  if (!data) return undefined;
+  return (data.destination_ids as string[] | null) ?? null;
 }
 
 /** The tier last persisted for the tenant (null when none / no row). Lets
