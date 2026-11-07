@@ -92,7 +92,7 @@ export async function getOrCreateSession(
     broadcast_meta: fresh.broadcastMeta,
   });
   if (!error) return fresh;
-  // Lost a first-access race (SSO tier save, the dashboard and a server action
+  // Lost a first-access race (SSO launch, the dashboard and a server action
   // can all create the row at once): another request inserted it first.
   const { data: stored } = await db
     .from("chalybobs_sessions")
