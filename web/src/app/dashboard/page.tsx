@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "@/lib/server-session";
+import { getServerLang, getServerSession } from "@/lib/server-session";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { getDestinations, getOrCreateSession } from "@/lib/data";
 import { isFullAccessTier } from "@/lib/tier";
@@ -56,7 +56,7 @@ export default async function DashboardPage({
 
   const tenantId = session.tenant_id;
   const [tenantSession, destinations] = await Promise.all([
-    getOrCreateSession(tenantId),
+    getOrCreateSession(tenantId, await getServerLang()),
     getDestinations(tenantId),
   ]);
 

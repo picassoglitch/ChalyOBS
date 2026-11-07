@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "@/lib/server-session";
+import { getServerLang, getServerSession } from "@/lib/server-session";
+import { defaultStreamTitle } from "@/lib/locale";
 import {
   BroadcastMeta,
   normalizeBroadcastMeta,
@@ -41,7 +42,8 @@ function requireString(value: unknown, field: string, max = 2000): string {
 
 export async function setTitleAction(title: string): Promise<void> {
   const tenant = await requireTenant();
-  const clean = requireString(title, "title", 300).trim() || "Mi transmisión en vivo";
+  const clean =
+    requireString(title, "title", 300).trim() || defaultStreamTitle(await getServerLang());
   await setSessionTitle(tenant, clean);
   revalidatePath("/dashboard");
 }
@@ -128,7 +130,7 @@ export async function publishBroadcastAction(
   const tenant = await requireTenant();
   // Normalize the untrusted blob (wrong types would crash .trim()/.map()).
   const clean = normalizeBroadcastMeta(meta, "");
-  await publishBroadcastMeta(tenant, clean);
+  await publishBroadcastMeta(tenant, clean, await getServerLang());
   // Then mirror to OAuth-connected platforms (Kick title/category/tags).
   // Best-effort by design — platform outages only surface as row status.
   await pushBroadcastToConnectedPlatforms(tenant, clean);

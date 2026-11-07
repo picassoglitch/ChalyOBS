@@ -17,6 +17,7 @@ import { signSession, SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@/lib/ses
 import { SsoTokenError, verifySsoToken } from "@/lib/sso";
 import { saveTenantTier } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { LANG_COOKIE, LANG_COOKIE_MAX_AGE, normalizeLang } from "@/lib/locale";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url);
@@ -73,6 +74,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });
+  // Hub PR #174 sends the screen's language; the hops back to the hub reuse it.
+  const lang = normalizeLang(url.searchParams.get("lang"));
+  if (lang) {
+    response.cookies.set({
+      name: LANG_COOKIE,
+      value: lang,
+      sameSite: "lax",
+      secure: origin.startsWith("https:"),
+      path: "/",
+      maxAge: LANG_COOKIE_MAX_AGE,
+    });
+  }
   return response;
 }
 

@@ -1,3 +1,5 @@
+import { hubPath, type Lang } from "../locale.ts";
+
 /**
  * Where the Chalyb hub lives, for redirects that must land in the hub (the
  * OAuth hand-back and the "user pages moved to the hub" redirect). Read from
@@ -53,6 +55,7 @@ export function hubOAuthForwardUrl(
 export function hubPageRedirect(
   pathname: string,
   env: Record<string, string | undefined> = process.env,
+  lang: Lang | null = null,
 ): string | null {
   if (env.CHALYBOBS_REDIRECT_TO_HUB !== "1") return null;
   const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`);
@@ -61,5 +64,5 @@ export function hubPageRedirect(
   else if (under("/settings")) target = "/app/en-vivo/ajustes";
   else if (under("/analytics")) target = "/app/en-vivo/transmisiones";
   if (!target) return null;
-  return new URL(target, resolveHubBase(env)).toString();
+  return new URL(hubPath(target, lang), resolveHubBase(env)).toString();
 }

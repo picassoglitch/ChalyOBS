@@ -11,6 +11,7 @@ import {
 import { isFullAccessTier } from "./tier";
 import { buildPushUrl } from "./push-url";
 import { settleSessionInsert } from "./session-create";
+import { defaultStreamTitle, type Lang } from "./locale";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -32,7 +33,6 @@ export interface TenantSession {
   broadcastMeta: BroadcastMeta;
 }
 
-const DEFAULT_TITLE = "Mi transmisión en vivo";
 
 /** Generate a fresh ingest stream key. Format mirrors the mock so the UI
  *  reads the same. Crypto-random, server-side. */
@@ -49,7 +49,9 @@ function freshStreamKey(): string {
  *  generated stream key) on first access. */
 export async function getOrCreateSession(
   tenantId: string,
+  lang: Lang | null = null,
 ): Promise<TenantSession> {
+  const defaultTitle = defaultStreamTitle(lang);
   const db = getSupabaseAdmin();
   const { data } = await db
     .from("chalybobs_sessions")
@@ -71,13 +73,13 @@ export async function getOrCreateSession(
   }
 
   const fresh: TenantSession = {
-    title: DEFAULT_TITLE,
+    title: defaultTitle,
     isLive: false,
     // Sending streams to Clips is opt-in (Aldo, 2026-10-15): new tenants
     // start with it off. Existing rows keep whatever they have.
     clipsEnabled: false,
     streamKey: freshStreamKey(),
-    broadcastMeta: normalizeBroadcastMeta(null, DEFAULT_TITLE),
+    broadcastMeta: normalizeBroadcastMeta(null, defaultTitle),
   };
   // record_enabled is omitted on insert — the column keeps its DB default
   // (true). Recording isn't a user-facing toggle anymore (ChalyClip drives it).
@@ -367,9 +369,10 @@ export async function toggleDestination(
 export async function publishBroadcastMeta(
   tenantId: string,
   meta: BroadcastMeta,
+  lang: Lang | null = null,
 ): Promise<void> {
   const db = getSupabaseAdmin();
-  const title = meta.title.trim() || DEFAULT_TITLE;
+  const title = meta.title.trim() || defaultStreamTitle(lang);
   const clean: BroadcastMeta = {
     ...meta,
     title,

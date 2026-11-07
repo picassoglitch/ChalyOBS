@@ -74,3 +74,22 @@ test("sso: aud is surfaced (so /auth/sso can refuse hub-scoped tokens)", async (
   assert.equal((await verifySsoToken(mint({ ...base, aud: "chalybobs-hub-preview" }), { secret: "s" })).aud, "chalybobs-hub-preview");
   await assert.rejects(verifySsoToken(mint({ ...base, aud: 5 }), { secret: "s" }));
 });
+
+test("hub redirect keeps the SSO language: English under /en, Spanish unchanged", () => {
+  const env = { CHALYBOBS_REDIRECT_TO_HUB: "1", CHALYB_BASE_URL: "https://www.chalyb.com" };
+  const m: Record<string, string> = {
+    "/": "/app/en-vivo",
+    "/dashboard": "/app/en-vivo",
+    "/login": "/app/en-vivo",
+    "/settings": "/app/en-vivo/ajustes",
+    "/analytics/x": "/app/en-vivo/transmisiones",
+  };
+  for (const [path, target] of Object.entries(m)) {
+    assert.equal(hubPageRedirect(path, env, "en"), `https://www.chalyb.com/en${target}`, path);
+    assert.equal(hubPageRedirect(path, env, "es"), `https://www.chalyb.com${target}`, path);
+    assert.equal(hubPageRedirect(path, env, null), `https://www.chalyb.com${target}`, path);
+    assert.equal(hubPageRedirect(path, env), `https://www.chalyb.com${target}`, path);
+  }
+  assert.equal(hubPageRedirect("/api/x", env, "en"), null);
+  assert.equal(hubPageRedirect("/dashboard", {}, "en"), null);
+});

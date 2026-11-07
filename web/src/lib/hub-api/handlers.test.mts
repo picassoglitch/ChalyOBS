@@ -112,7 +112,7 @@ async function call(
   deps: HubApiDeps,
   method: string,
   path: string,
-  opts: { auth?: string | null; body?: unknown; search?: string } = {},
+  opts: { auth?: string | null; body?: unknown; search?: string; lang?: "es" | "en" | null } = {},
 ) {
   const res = await handleHubApi(
     {
@@ -122,6 +122,7 @@ async function call(
       body: opts.body,
       search: opts.search,
       accept: null,
+      lang: opts.lang,
     },
     deps,
   );
@@ -441,4 +442,53 @@ test("unknown routes and methods are 404", async () => {
   assert.equal((await call(deps, "DELETE", "state")).status, 404);
   assert.equal((await call(deps, "GET", "nope")).status, 404);
   assert.equal((await call(deps, "GET", "destinations/dA/extra/x")).status, 404);
+});
+
+// ── Language ("Visible text only", Aldo 2026-11-07) ────────────────────────
+
+test("a cleared title falls back to the default in the request's language", async () => {
+  for (const [lang, want] of [
+    ["en", "My live stream"],
+    ["es", "Mi transmisión en vivo"],
+    [null, "Mi transmisión en vivo"],
+    [undefined, "Mi transmisión en vivo"],
+  ] as const) {
+    const { deps, calls } = fakeDeps();
+    assert.equal((await call(deps, "PATCH", "session", { body: { title: " " }, lang })).status, 200);
+    assert.deepEqual(calls.find((c) => c.fn === "updateSession")?.args, ["tenant-A", { title: want }], String(lang));
+  }
+});
+
+test("a typed title is kept as-is in either language", async () => {
+  const { deps, calls } = fakeDeps();
+  await call(deps, "PATCH", "session", { body: { title: " Mi show " }, lang: "en" });
+  assert.deepEqual(calls.find((c) => c.fn === "updateSession")?.args, ["tenant-A", { title: "Mi show" }]);
+});
+
+test("the language reaches every session create, so a new row gets the localized default", async () => {
+  const seen: unknown[] = [];
+  const { deps, calls } = fakeDeps();
+  const inner = deps.getOrCreateSession;
+  deps.getOrCreateSession = async (t, lang) => {
+    seen.push(lang ?? null);
+    return inner(t, lang);
+  };
+  await call(deps, "GET", "state", { lang: "en" });
+  await call(deps, "PATCH", "session", { body: { title: "x" }, lang: "en" });
+  await call(deps, "GET", "stream-key", { lang: "en" });
+  await call(deps, "POST", "stream-key/regenerate", { lang: "en" });
+  await call(deps, "POST", "broadcast", {
+    lang: "en",
+    body: { meta: { title: "t", description: "", category: "", tags: [], language: "", visibility: "public", madeForKids: false, mature: false } },
+  });
+  await call(deps, "GET", "state");
+  assert.deepEqual(seen, ["en", "en", "en", "en", "en", null]);
+  assert.equal(calls.find((c) => c.fn === "publishBroadcastMeta")?.args[2], "en");
+});
+
+test("an existing title is never rewritten by the language", async () => {
+  const { deps, calls } = fakeDeps();
+  const r = await call(deps, "GET", "state", { lang: "en" });
+  assert.equal(r.json.title, "Mi show");
+  assert.equal(calls.some((c) => c.fn === "updateSession"), false);
 });

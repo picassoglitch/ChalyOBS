@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readChalybEnv } from "@/lib/env";
 import { SESSION_COOKIE_NAME, verifySession } from "@/lib/session";
 import { hubPageRedirect } from "@/lib/hub-api/hub-base";
+import { LANG_COOKIE, normalizeLang } from "@/lib/locale";
 
 /**
  * Edge-runtime middleware. ChalyOBS is an agent of Chalyb — it only
@@ -21,7 +22,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   // CHALYBOBS_REDIRECT_TO_HUB=1: the user pages live in the Chalyb hub now
   // (/app/en-vivo). Off by default — flipping it is the cutover/rollback.
-  const toHub = hubPageRedirect(pathname);
+  const lang =
+    normalizeLang(request.nextUrl.searchParams.get("lang")) ??
+    normalizeLang(request.cookies.get(LANG_COOKIE)?.value);
+  const toHub = hubPageRedirect(pathname, process.env, lang);
   if (toHub) return NextResponse.redirect(toHub, 307);
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
