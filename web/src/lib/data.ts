@@ -13,6 +13,7 @@ import { buildPushUrl } from "./push-url";
 import { settleSessionInsert } from "./session-create";
 import { writeTenantTier } from "./tenant-tier";
 import { defaultStreamTitle, type Lang } from "./locale";
+import { freshMetaBlob, LANG_PENDING_KEY, pendingTitleFix, type SessionLang } from "./session-title";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -45,19 +46,66 @@ function freshStreamKey(): string {
   return `chalyb_live_${hex}`;
 }
 
-/** Load the tenant's session row, creating a default one (with a freshly
- *  generated stream key) on first access. */
-export async function getOrCreateSession(
+type SessionRow = {
+  title: unknown;
+  is_live: unknown;
+  clips_enabled: unknown;
+  stream_key: unknown;
+  broadcast_meta: unknown;
+};
+
+/** Apply pendingTitleFix. Guarded on the flag still being there, so a title or
+ *  composer save that raced in first is never overwritten. */
+async function settlePendingTitle<R extends SessionRow>(
   tenantId: string,
-  lang: Lang | null = null,
-): Promise<TenantSession> {
-  const defaultTitle = defaultStreamTitle(lang);
-  const db = getSupabaseAdmin();
-  const { data } = await db
+  row: R,
+  lang: SessionLang,
+): Promise<R> {
+  const fix = pendingTitleFix(
+    { title: row.title as string, broadcast_meta: row.broadcast_meta },
+    lang,
+  );
+  if (!fix) return row;
+  const title = fix.kind === "retitle" ? fix.title : (row.title as string);
+  const meta =
+    fix.kind === "retitle"
+      ? normalizeBroadcastMeta(null, title)
+      : normalizeBroadcastMeta(row.broadcast_meta, title); // drops the flag
+  const { data, error } = await getSupabaseAdmin()
+    .from("chalybobs_sessions")
+    .update({ title, broadcast_meta: meta, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("title", row.title as string)
+    .eq(`broadcast_meta->>${LANG_PENDING_KEY}`, "true")
+    .select("title, is_live, clips_enabled, stream_key, broadcast_meta");
+  if (error) {
+    console.error(`[sessions] title language settle failed: ${error.message}`);
+    return row;
+  }
+  if (data && data.length > 0) return data[0] as R;
+  // Someone else settled or edited it first: read what they stored.
+  const { data: now } = await getSupabaseAdmin()
     .from("chalybobs_sessions")
     .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
     .eq("tenant_id", tenantId)
     .maybeSingle();
+  return (now as R | null) ?? row;
+}
+
+/** Load the tenant's session row, creating it on first access. `lang` is the screen's;
+ *  "unknown" (ChalyClip's switch) leaves the title to the first screen (session-title.ts). */
+export async function getOrCreateSession(
+  tenantId: string,
+  lang: SessionLang = "unknown",
+): Promise<TenantSession> {
+  const defaultTitle = defaultStreamTitle(lang === "unknown" ? null : lang);
+  const db = getSupabaseAdmin();
+  const { data: found } = await db
+    .from("chalybobs_sessions")
+    .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const data = found ? await settlePendingTitle(tenantId, found, lang) : null;
 
   if (data) {
     const title = data.title as string;
@@ -89,7 +137,7 @@ export async function getOrCreateSession(
     is_live: fresh.isLive,
     clips_enabled: fresh.clipsEnabled,
     stream_key: fresh.streamKey,
-    broadcast_meta: fresh.broadcastMeta,
+    broadcast_meta: freshMetaBlob(fresh.broadcastMeta, lang),
   });
   if (!error) return fresh;
   // Lost a first-access race (SSO launch, the dashboard and a server action
