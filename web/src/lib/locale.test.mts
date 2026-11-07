@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultStreamTitle, hubPath, langFromAcceptLanguage, normalizeLang } from "./locale.ts";
+import { defaultStreamTitle, hubLaunchPath, hubPath, langFromAcceptLanguage, normalizeLang } from "./locale.ts";
 
 test("normalizeLang", () => {
   const cases: [string | null | undefined, string | null][] = [
@@ -28,4 +28,10 @@ test("hubPath prefixes only English", () => {
   assert.equal(hubPath("/app/en-vivo", "en"), "/en/app/en-vivo");
   assert.equal(hubPath("/app/en-vivo", "es"), "/app/en-vivo");
   assert.equal(hubPath("/app/en-vivo", null), "/app/en-vivo");
+});
+
+test("hub launcher carries ?lang=en only for English", () => {
+  assert.equal(hubLaunchPath("chalybobs", "en"), "/auth/launch/chalybobs?lang=en");
+  assert.equal(hubLaunchPath("chalybobs", "es"), "/auth/launch/chalybobs");
+  assert.equal(hubLaunchPath("chalybobs", null), "/auth/launch/chalybobs");
 });

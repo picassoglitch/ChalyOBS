@@ -1,4 +1,6 @@
 import { missingChalybEnvVars, readChalybEnv } from "@/lib/env";
+import { hubLaunchPath, type Lang } from "@/lib/locale";
+import { getServerLang } from "@/lib/server-session";
 
 interface LoginPageProps {
   searchParams: Promise<{ next?: string; error?: string }>;
@@ -17,6 +19,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const env = readChalybEnv();
   const missing = missingChalybEnvVars();
   const configured = env !== null;
+  const lang = await getServerLang();
 
   return (
     <div className="flex-1 flex items-center justify-center px-6 py-16">
@@ -45,7 +48,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {configured && (
           <a
-            href={buildChalybLoginUrl(env)}
+            href={buildChalybLoginUrl(env, lang)}
             className="w-full flex items-center justify-center gap-3 py-3 rounded-lg bg-accent text-white hover:opacity-90 transition text-sm font-semibold"
           >
             Continuar con Chalyb →
@@ -88,11 +91,12 @@ function ssoErrorText(reason: string): string {
 
 function buildChalybLoginUrl(
   env: NonNullable<ReturnType<typeof readChalybEnv>>,
+  lang: Lang | null,
 ): string {
   // The hub's launcher signs the person in if needed (/sign-in?next=…), then
   // mints the SSO token and lands them on our /auth/sso → /dashboard. Its
   // /login → /sign-in ignores engine/return_to, so linking there left people
   // on chalyb.com instead of coming back here.
   const hub = process.env.CHALYB_BASE_URL?.trim() || new URL(env.chalybLoginUrl).origin;
-  return new URL("/auth/launch/chalybobs", hub).toString();
+  return new URL(hubLaunchPath("chalybobs", lang), hub).toString();
 }

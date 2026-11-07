@@ -29,6 +29,11 @@ export function defaultStreamTitle(lang: Lang | null | undefined): string {
   return lang === "en" ? "My live stream" : "Mi transmisión en vivo";
 }
 
+/** The hub's SSO launcher for this engine; it sits outside the hub's locale tree. */
+export function hubLaunchPath(slug: string, lang: Lang | null | undefined): string {
+  return lang === "en" ? `/auth/launch/${slug}?lang=en` : `/auth/launch/${slug}`;
+}
+
 /** A hub path in `lang`: the hub's English pages live under /en. */
 export function hubPath(path: string, lang: Lang | null | undefined): string {
   return lang === "en" ? `/en${path}` : path;

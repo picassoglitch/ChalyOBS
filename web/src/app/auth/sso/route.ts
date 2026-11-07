@@ -74,12 +74,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });
-  // Hub PR #174 sends the screen's language; the hops back to the hub reuse it.
+  // Hub PR #174 sends `lang` only for English; no lang means a Spanish hub, so a
+  // stale en choice is dropped instead of sending a Spanish user to /en/….
   const lang = normalizeLang(url.searchParams.get("lang"));
-  if (lang) {
+  if (!lang) {
+    response.cookies.delete(LANG_COOKIE);
+  } else {
     response.cookies.set({
       name: LANG_COOKIE,
       value: lang,
+      httpOnly: true,
       sameSite: "lax",
       secure: origin.startsWith("https:"),
       path: "/",

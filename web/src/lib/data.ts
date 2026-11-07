@@ -33,7 +33,6 @@ export interface TenantSession {
   broadcastMeta: BroadcastMeta;
 }
 
-
 /** Generate a fresh ingest stream key. Format mirrors the mock so the UI
  *  reads the same. Crypto-random, server-side. */
 function freshStreamKey(): string {
