@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { isLowPrivilegeKey, supabaseKeyKind } from "./supabase-key";
 
 /**
  * Server-only Supabase admin client for the shared Chalyb project.
@@ -59,6 +60,12 @@ export function getSupabaseAdmin(): SupabaseClient {
       "Supabase not configured — set CHALYBOBS_SUPABASE_URL (or SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL) + CHALYBOBS_SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY)",
     );
   }
+  // A publishable/anon key runs under RLS: every read is empty, every insert refused.
+  if (isLowPrivilegeKey(key)) {
+    throw new Error(
+      `Supabase key is ${supabaseKeyKind(key)}, not a secret/service_role key — set ${SUPABASE_SECRET_ENV_NAMES.join(" / ")} to the project's secret key`,
+    );
+  }
   cached = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -66,5 +73,6 @@ export function getSupabaseAdmin(): SupabaseClient {
 }
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(supabaseUrl() && secretKey());
+  const key = secretKey();
+  return Boolean(supabaseUrl() && key && !isLowPrivilegeKey(key));
 }

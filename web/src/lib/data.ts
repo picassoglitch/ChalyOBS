@@ -10,6 +10,7 @@ import {
 } from "./destinations";
 import { isFullAccessTier } from "./tier";
 import { buildPushUrl } from "./push-url";
+import { settleSessionInsert } from "./session-create";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -88,29 +89,28 @@ export async function getOrCreateSession(
     stream_key: fresh.streamKey,
     broadcast_meta: fresh.broadcastMeta,
   });
-  if (error) {
-    // Lost a first-access race (SSO tier save, the dashboard and a server
-    // action can all create the row at once): another request inserted it
-    // first. Return what's stored — never a stream key the DB doesn't have,
-    // or the encoder panel would show a key the relay rejects.
-    const { data: stored } = await db
-      .from("chalybobs_sessions")
-      .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (stored) {
-      const title = stored.title as string;
-      return {
-        title,
-        isLive: stored.is_live as boolean,
-        clipsEnabled: (stored.clips_enabled as boolean | null) ?? true,
-        streamKey: stored.stream_key as string,
-        broadcastMeta: normalizeBroadcastMeta(stored.broadcast_meta, title),
-      };
-    }
-    console.error(`[sessions] create failed for tenant ${tenantId}: ${error.message}`);
-  }
-  return fresh;
+  if (!error) return fresh;
+  // Lost a first-access race (SSO tier save, the dashboard and a server action
+  // can all create the row at once): another request inserted it first.
+  const { data: stored } = await db
+    .from("chalybobs_sessions")
+    .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  return settleSessionInsert<TenantSession>({
+    tenantId,
+    insertError: error,
+    stored: stored
+      ? {
+          title: stored.title as string,
+          isLive: stored.is_live as boolean,
+          clipsEnabled: (stored.clips_enabled as boolean | null) ?? true,
+          streamKey: stored.stream_key as string,
+          broadcastMeta: normalizeBroadcastMeta(stored.broadcast_meta, stored.title as string),
+        }
+      : null,
+    fresh,
+  });
 }
 
 /** Read-only: is the ChalyClip connection on for this tenant? Source of truth

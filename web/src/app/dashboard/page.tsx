@@ -45,7 +45,9 @@ export default async function DashboardPage({
             específicos{" "}
             <code className="font-mono">CHALYBOBS_SUPABASE_URL</code> y{" "}
             <code className="font-mono">CHALYBOBS_SUPABASE_SECRET_KEY</code>.
-            El multi-tenant no puede cargar sin ellas.
+            La key debe ser la secret (<code className="font-mono">sb_secret_…</code>
+            {" "}o service_role), nunca la publishable/anon. El multi-tenant no
+            puede cargar sin ellas.
           </p>
         </div>
       </div>
