@@ -16,6 +16,7 @@ import { isFullAccessTier } from "../tier.ts";
 import { HUB_API_AUD, HUB_PREVIEW_AUD, type HubClaims, verifyHubBearer } from "./auth.ts";
 import { proxyPreview } from "../preview-proxy.ts";
 import { isAllowedIngestUrl as isPushableIngestUrl } from "../push-url.ts";
+import { defaultStreamTitle, type Lang } from "../locale.ts";
 
 type Dest = DestinationConfig & { id: string };
 
@@ -28,7 +29,7 @@ export interface HubApiDeps {
   /** Public origin of this engine — builds the registered OAuth redirect URI. */
   publicOrigin: string;
 
-  getOrCreateSession(tenantId: string): Promise<TenantSession>;
+  getOrCreateSession(tenantId: string, lang?: Lang | null): Promise<TenantSession>;
   getStoredTier(tenantId: string): Promise<string | null>;
   saveTenantTier(tenantId: string, tier: string | null): Promise<void>;
   updateSession(tenantId: string, patch: Partial<TenantSession>): Promise<void>;
@@ -43,7 +44,7 @@ export interface HubApiDeps {
   ): Promise<void>;
   toggleDestination(tenantId: string, id: string): Promise<void>;
   removeDestination(tenantId: string, id: string): Promise<void>;
-  publishBroadcastMeta(tenantId: string, meta: BroadcastMeta): Promise<void>;
+  publishBroadcastMeta(tenantId: string, meta: BroadcastMeta, lang?: Lang | null): Promise<void>;
   pushBroadcastToConnectedPlatforms(tenantId: string, meta: BroadcastMeta): Promise<void>;
   listStreams(
     tenantId: string,
@@ -66,9 +67,11 @@ export interface HubApiRequest {
   /** Raw query string with "?" (preview only). */
   search?: string;
   accept?: string | null;
+  /** The hub screen's language (`?lang=`, else Accept-Language): new sessions'
+   *  default title. Never changes a stored title. */
+  lang?: Lang | null;
 }
 
-const DEFAULT_TITLE = "Mi transmisión en vivo";
 const MAX_TITLE = 200;
 const MAX_FIELD = 500;
 
@@ -185,13 +188,14 @@ export async function handleHubApi(req: HubApiRequest, deps: HubApiDeps): Promis
   if (!c) return err("unauthorized", 401);
   if (!deps.dbConfigured) return err("service_not_configured", 503);
   const t = c.tenant_id;
+  const lang = req.lang ?? null;
   const body = asObject(req.body) ?? {};
   const route = `${req.method} ${req.path.map((p, i) => (i === 1 && head === "destinations" ? ":id" : i === 1 && head === "oauth" ? ":p" : p)).join("/")}`;
 
   switch (route) {
     case "GET state": {
       const [session, destinations] = await Promise.all([
-        deps.getOrCreateSession(t),
+        deps.getOrCreateSession(t, lang),
         deps.getDestinations(t),
       ]);
       await syncTier(deps, c);
@@ -212,7 +216,7 @@ export async function handleHubApi(req: HubApiRequest, deps: HubApiDeps): Promis
       const patch: Partial<TenantSession> = {};
       if (body.title !== undefined) {
         if (typeof body.title !== "string" || body.title.length > MAX_TITLE) return err("bad_request", 400);
-        patch.title = body.title.trim() || DEFAULT_TITLE;
+        patch.title = body.title.trim() || defaultStreamTitle(lang);
       }
       if (body.clipsEnabled !== undefined) {
         if (typeof body.clipsEnabled !== "boolean") return err("bad_request", 400);
@@ -221,21 +225,21 @@ export async function handleHubApi(req: HubApiRequest, deps: HubApiDeps): Promis
         patch.clipsEnabled = body.clipsEnabled;
       }
       if (Object.keys(patch).length === 0) return err("bad_request", 400);
-      await deps.getOrCreateSession(t); // the row may not exist yet
+      await deps.getOrCreateSession(t, lang); // the row may not exist yet
       await syncTier(deps, c);
       await deps.updateSession(t, patch);
       return ok();
     }
 
     case "GET stream-key": {
-      await deps.getOrCreateSession(t);
+      await deps.getOrCreateSession(t, lang);
       const key = await deps.getStreamKey(t);
       if (!key) return err("not_found", 404);
       return json({ streamKey: key });
     }
 
     case "POST stream-key/regenerate": {
-      await deps.getOrCreateSession(t);
+      await deps.getOrCreateSession(t, lang);
       await deps.regenerateStreamKey(t);
       return ok();
     }
@@ -281,9 +285,9 @@ export async function handleHubApi(req: HubApiRequest, deps: HubApiDeps): Promis
 
     case "POST broadcast": {
       if (!validBroadcastMeta(body.meta)) return err("bad_request", 400);
-      const session = await deps.getOrCreateSession(t);
+      const session = await deps.getOrCreateSession(t, lang);
       const meta = normalizeBroadcastMeta(body.meta, session.title);
-      await deps.publishBroadcastMeta(t, meta);
+      await deps.publishBroadcastMeta(t, meta, lang);
       // Best-effort by design — platform outages only surface as row status.
       await deps.pushBroadcastToConnectedPlatforms(t, meta);
       return ok();

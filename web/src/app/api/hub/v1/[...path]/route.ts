@@ -8,6 +8,7 @@ import { NextRequest } from "next/server";
 import { resolvePublicOrigin } from "@/lib/env";
 import { handleHubApi } from "@/lib/hub-api/handlers";
 import { realHubApiDeps } from "@/lib/hub-api/deps";
+import { langFromAcceptLanguage, normalizeLang } from "@/lib/locale";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,9 @@ async function handle(
       body,
       search: request.nextUrl.search,
       accept: request.headers.get("accept"),
+      lang:
+        normalizeLang(request.nextUrl.searchParams.get("lang")) ??
+        langFromAcceptLanguage(request.headers.get("accept-language")),
     },
     realHubApiDeps(resolvePublicOrigin(request)),
   );

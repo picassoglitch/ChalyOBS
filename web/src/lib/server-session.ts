@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { readChalybEnv } from "./env";
 import { SESSION_COOKIE_NAME, SessionClaims, verifySession } from "./session";
+import { LANG_COOKIE, type Lang, normalizeLang } from "./locale";
 
 /**
  * Read + verify the ChalyOBS session cookie in a Server Component / Server
@@ -19,4 +20,10 @@ export async function getServerSession(): Promise<SessionClaims | null> {
   } catch {
     return null;
   }
+}
+
+/** The language the SSO launch left in the cookie (null = Spanish default). */
+export async function getServerLang(): Promise<Lang | null> {
+  const store = await cookies();
+  return normalizeLang(store.get(LANG_COOKIE)?.value);
 }
