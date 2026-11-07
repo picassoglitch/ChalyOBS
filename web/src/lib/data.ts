@@ -11,7 +11,15 @@ import {
 import { isFullAccessTier } from "./tier";
 import { buildPushUrl } from "./push-url";
 import { settleSessionInsert } from "./session-create";
+import { writeTenantTier } from "./tenant-tier";
 import { defaultStreamTitle, type Lang } from "./locale";
+import {
+  freshMetaBlob,
+  LANG_PENDING_KEY,
+  openSession,
+  pendingTitleFix,
+  type SessionLang,
+} from "./session-title";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -44,21 +52,97 @@ function freshStreamKey(): string {
   return `chalyb_live_${hex}`;
 }
 
-/** Load the tenant's session row, creating a default one (with a freshly
- *  generated stream key) on first access. */
-export async function getOrCreateSession(
+type SessionRow = {
+  title: unknown;
+  is_live: unknown;
+  clips_enabled: unknown;
+  stream_key: unknown;
+  broadcast_meta: unknown;
+};
+
+/** Apply pendingTitleFix. Guarded on the flag still being there, so a title or
+ *  composer save that raced in first is never overwritten. */
+async function settlePendingTitle<R extends SessionRow>(
   tenantId: string,
-  lang: Lang | null = null,
-): Promise<TenantSession> {
-  const defaultTitle = defaultStreamTitle(lang);
-  const db = getSupabaseAdmin();
-  const { data } = await db
+  row: R,
+  lang: SessionLang,
+): Promise<R> {
+  const fix = pendingTitleFix(
+    { title: row.title as string, broadcast_meta: row.broadcast_meta },
+    lang,
+  );
+  if (!fix) return row;
+  const title = fix.kind === "retitle" ? fix.title : (row.title as string);
+  const meta =
+    fix.kind === "retitle"
+      ? normalizeBroadcastMeta(null, title)
+      : normalizeBroadcastMeta(row.broadcast_meta, title); // drops the flag
+  const { data, error } = await getSupabaseAdmin()
+    .from("chalybobs_sessions")
+    .update({ title, broadcast_meta: meta, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("title", row.title as string)
+    .eq(`broadcast_meta->>${LANG_PENDING_KEY}`, "true")
+    .select("title, is_live, clips_enabled, stream_key, broadcast_meta");
+  if (error) {
+    console.error(`[sessions] title language settle failed: ${error.message}`);
+    return row;
+  }
+  if (data && data.length > 0) return data[0] as R;
+  // Someone else settled or edited it first: read what they stored.
+  const { data: now } = await getSupabaseAdmin()
     .from("chalybobs_sessions")
     .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
     .eq("tenant_id", tenantId)
     .maybeSingle();
+  return (now as R | null) ?? row;
+}
 
-  if (data) {
+/** Load the tenant's session row, creating it on first access. `lang` is the screen's;
+ *  "unknown" (ChalyClip's switch) leaves the title to the first screen (session-title.ts). */
+export async function getOrCreateSession(
+  tenantId: string,
+  lang: SessionLang = "unknown",
+): Promise<TenantSession> {
+  const defaultTitle = defaultStreamTitle(lang === "unknown" ? null : lang);
+  const db = getSupabaseAdmin();
+  const fresh: TenantSession = {
+    title: defaultTitle,
+    isLive: false,
+    // Sending streams to Clips is opt-in (Aldo, 2026-10-15): new tenants
+    // start with it off. Existing rows keep whatever they have.
+    clipsEnabled: false,
+    streamKey: freshStreamKey(),
+    broadcastMeta: normalizeBroadcastMeta(null, defaultTitle),
+  };
+  const opened = await openSession<SessionRow>({
+    read: async () =>
+      (
+        await db
+          .from("chalybobs_sessions")
+          .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
+          .eq("tenant_id", tenantId)
+          .maybeSingle()
+      ).data,
+    // record_enabled is omitted on insert — the column keeps its DB default
+    // (true). Recording isn't a user-facing toggle anymore (ChalyClip drives it).
+    insert: async () =>
+      (
+        await db.from("chalybobs_sessions").insert({
+          tenant_id: tenantId,
+          title: fresh.title,
+          is_live: fresh.isLive,
+          clips_enabled: fresh.clipsEnabled,
+          stream_key: fresh.streamKey,
+          broadcast_meta: freshMetaBlob(fresh.broadcastMeta, lang),
+        })
+      ).error,
+    settle: (row) => settlePendingTitle(tenantId, row, lang),
+  });
+
+  if (opened.kind === "created") return fresh;
+  if (opened.kind === "found") {
+    const data = opened.row;
     const title = data.title as string;
     return {
       title,
@@ -70,37 +154,12 @@ export async function getOrCreateSession(
       broadcastMeta: normalizeBroadcastMeta(data.broadcast_meta, title),
     };
   }
-
-  const fresh: TenantSession = {
-    title: defaultTitle,
-    isLive: false,
-    // Sending streams to Clips is opt-in (Aldo, 2026-10-15): new tenants
-    // start with it off. Existing rows keep whatever they have.
-    clipsEnabled: false,
-    streamKey: freshStreamKey(),
-    broadcastMeta: normalizeBroadcastMeta(null, defaultTitle),
-  };
-  // record_enabled is omitted on insert — the column keeps its DB default
-  // (true). Recording isn't a user-facing toggle anymore (ChalyClip drives it).
-  const { error } = await db.from("chalybobs_sessions").insert({
-    tenant_id: tenantId,
-    title: fresh.title,
-    is_live: fresh.isLive,
-    clips_enabled: fresh.clipsEnabled,
-    stream_key: fresh.streamKey,
-    broadcast_meta: fresh.broadcastMeta,
-  });
-  if (!error) return fresh;
-  // Lost a first-access race (SSO tier save, the dashboard and a server action
+  // Lost a first-access race (SSO launch, the dashboard and a server action
   // can all create the row at once): another request inserted it first.
-  const { data: stored } = await db
-    .from("chalybobs_sessions")
-    .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const stored = opened.row;
   return settleSessionInsert<TenantSession>({
     tenantId,
-    insertError: error,
+    insertError: opened.insertError,
     stored: stored
       ? {
           title: stored.title as string,
@@ -878,24 +937,13 @@ export async function markStreamEnded(
 
 // ── Tier (persisted from SSO / provisioning, migration 0026) ────────────────
 
-/** Persist the tier Chalyb last told us about (SSO launch or tenant
- *  provisioning), so relay callbacks — which carry no user cookie — can
- *  re-check it. Best-effort: never blocks login. */
+// Relay callbacks (no cookie) re-check this tier. Existing rows only: the first screen
+// that opens En vivo creates the row in its language (hub /state, /auth/sso, dashboard).
 export async function saveTenantTier(
   tenantId: string,
   tier: string | null,
 ): Promise<void> {
-  try {
-    await getOrCreateSession(tenantId); // ensure row exists
-    const db = getSupabaseAdmin();
-    const { error } = await db
-      .from("chalybobs_sessions")
-      .update({ tier, tier_updated_at: new Date().toISOString() })
-      .eq("tenant_id", tenantId);
-    if (error) console.error(`[tier] save failed: ${error.message}`);
-  } catch (e) {
-    console.error(`[tier] save failed: ${e instanceof Error ? e.message : String(e)}`);
-  }
+  await writeTenantTier(getSupabaseAdmin, tenantId, tier);
 }
 
 /**

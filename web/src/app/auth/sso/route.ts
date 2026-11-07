@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readChalybEnv, resolvePublicOrigin } from "@/lib/env";
 import { signSession, SESSION_COOKIE_NAME, SESSION_TTL_SECONDS } from "@/lib/session";
 import { SsoTokenError, verifySsoToken } from "@/lib/sso";
-import { saveTenantTier } from "@/lib/data";
+import { getOrCreateSession, saveTenantTier } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { LANG_COOKIE, LANG_COOKIE_MAX_AGE, normalizeLang } from "@/lib/locale";
 
@@ -47,9 +47,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return redirectToLogin(origin, "wrong_token_type");
   }
 
+  // Hub PR #174 sends `lang` only for English; no lang means a Spanish hub.
+  const lang = normalizeLang(url.searchParams.get("lang"));
+
   // Persist the tier server-side too: relay callbacks (live/started|ended)
   // carry no cookie but must re-check it before forwarding to ChalyClip.
   if (isSupabaseConfigured()) {
+    // The tier save only updates, so a first launch creates the row here, titled in its language.
+    await getOrCreateSession(claims.tenant_id, lang).catch((e) =>
+      console.error(`[sso] session create failed: ${e instanceof Error ? e.message : String(e)}`),
+    );
     await saveTenantTier(claims.tenant_id, claims.tier ?? null);
   }
 
@@ -74,9 +81,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });
-  // Hub PR #174 sends `lang` only for English; no lang means a Spanish hub, so a
-  // stale en choice is dropped instead of sending a Spanish user to /en/….
-  const lang = normalizeLang(url.searchParams.get("lang"));
+  // No lang drops a stale en choice instead of sending a Spanish user to /en/….
   if (!lang) {
     response.cookies.delete(LANG_COOKIE);
   } else {

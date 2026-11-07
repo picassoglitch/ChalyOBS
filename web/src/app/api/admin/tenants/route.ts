@@ -68,8 +68,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const tenant_id = body.external_user_id;
-  // Whenever Chalyb (re)provisions with a tier, refresh the stored tier (the
-  // relay-side ChalyClip gate reads it) without waiting for the next SSO.
+  // Refresh the tier the relay's ChalyClip gate reads, on an existing session only: a new
+  // tenant's row is created by the first En vivo screen, in its language (2026-11-07).
   if (body.tier !== undefined && isSupabaseConfigured()) {
     await saveTenantTier(tenant_id, body.tier);
   }
