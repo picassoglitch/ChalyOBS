@@ -36,3 +36,23 @@ export function pendingTitleFix(
   if (wanted !== unknownDefault && row.title === unknownDefault) return { kind: "retitle", title: wanted };
   return { kind: "settle" };
 }
+
+export type OpenedSession<R> =
+  | { kind: "found"; row: R }
+  | { kind: "created" }
+  | { kind: "lost"; row: R | null; insertError: { message: string } };
+
+/** Read, else insert; on a lost insert race, read the winner's row. Every existing
+ *  row, found or won by another request, goes through `settle` (pendingTitleFix). */
+export async function openSession<R>(io: {
+  read: () => Promise<R | null>;
+  insert: () => Promise<{ message: string } | null>;
+  settle: (row: R) => Promise<R>;
+}): Promise<OpenedSession<R>> {
+  const found = await io.read();
+  if (found) return { kind: "found", row: await io.settle(found) };
+  const insertError = await io.insert();
+  if (!insertError) return { kind: "created" };
+  const winner = await io.read();
+  return { kind: "lost", row: winner ? await io.settle(winner) : null, insertError };
+}

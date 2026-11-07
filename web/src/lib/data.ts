@@ -13,7 +13,13 @@ import { buildPushUrl } from "./push-url";
 import { settleSessionInsert } from "./session-create";
 import { writeTenantTier } from "./tenant-tier";
 import { defaultStreamTitle, type Lang } from "./locale";
-import { freshMetaBlob, LANG_PENDING_KEY, pendingTitleFix, type SessionLang } from "./session-title";
+import {
+  freshMetaBlob,
+  LANG_PENDING_KEY,
+  openSession,
+  pendingTitleFix,
+  type SessionLang,
+} from "./session-title";
 
 /**
  * Per-tenant data layer. Every function takes a tenantId (from the verified
@@ -100,14 +106,43 @@ export async function getOrCreateSession(
 ): Promise<TenantSession> {
   const defaultTitle = defaultStreamTitle(lang === "unknown" ? null : lang);
   const db = getSupabaseAdmin();
-  const { data: found } = await db
-    .from("chalybobs_sessions")
-    .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  const data = found ? await settlePendingTitle(tenantId, found, lang) : null;
+  const fresh: TenantSession = {
+    title: defaultTitle,
+    isLive: false,
+    // Sending streams to Clips is opt-in (Aldo, 2026-10-15): new tenants
+    // start with it off. Existing rows keep whatever they have.
+    clipsEnabled: false,
+    streamKey: freshStreamKey(),
+    broadcastMeta: normalizeBroadcastMeta(null, defaultTitle),
+  };
+  const opened = await openSession<SessionRow>({
+    read: async () =>
+      (
+        await db
+          .from("chalybobs_sessions")
+          .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
+          .eq("tenant_id", tenantId)
+          .maybeSingle()
+      ).data,
+    // record_enabled is omitted on insert — the column keeps its DB default
+    // (true). Recording isn't a user-facing toggle anymore (ChalyClip drives it).
+    insert: async () =>
+      (
+        await db.from("chalybobs_sessions").insert({
+          tenant_id: tenantId,
+          title: fresh.title,
+          is_live: fresh.isLive,
+          clips_enabled: fresh.clipsEnabled,
+          stream_key: fresh.streamKey,
+          broadcast_meta: freshMetaBlob(fresh.broadcastMeta, lang),
+        })
+      ).error,
+    settle: (row) => settlePendingTitle(tenantId, row, lang),
+  });
 
-  if (data) {
+  if (opened.kind === "created") return fresh;
+  if (opened.kind === "found") {
+    const data = opened.row;
     const title = data.title as string;
     return {
       title,
@@ -119,37 +154,12 @@ export async function getOrCreateSession(
       broadcastMeta: normalizeBroadcastMeta(data.broadcast_meta, title),
     };
   }
-
-  const fresh: TenantSession = {
-    title: defaultTitle,
-    isLive: false,
-    // Sending streams to Clips is opt-in (Aldo, 2026-10-15): new tenants
-    // start with it off. Existing rows keep whatever they have.
-    clipsEnabled: false,
-    streamKey: freshStreamKey(),
-    broadcastMeta: normalizeBroadcastMeta(null, defaultTitle),
-  };
-  // record_enabled is omitted on insert — the column keeps its DB default
-  // (true). Recording isn't a user-facing toggle anymore (ChalyClip drives it).
-  const { error } = await db.from("chalybobs_sessions").insert({
-    tenant_id: tenantId,
-    title: fresh.title,
-    is_live: fresh.isLive,
-    clips_enabled: fresh.clipsEnabled,
-    stream_key: fresh.streamKey,
-    broadcast_meta: freshMetaBlob(fresh.broadcastMeta, lang),
-  });
-  if (!error) return fresh;
   // Lost a first-access race (SSO launch, the dashboard and a server action
   // can all create the row at once): another request inserted it first.
-  const { data: stored } = await db
-    .from("chalybobs_sessions")
-    .select("title, is_live, clips_enabled, stream_key, broadcast_meta")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const stored = opened.row;
   return settleSessionInsert<TenantSession>({
     tenantId,
-    insertError: error,
+    insertError: opened.insertError,
     stored: stored
       ? {
           title: stored.title as string,

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { freshMetaBlob, isLangPending, LANG_PENDING_KEY, pendingTitleFix } from "./session-title.ts";
+import { freshMetaBlob, isLangPending, LANG_PENDING_KEY, openSession, pendingTitleFix } from "./session-title.ts";
 
 const ES = "Mi transmisión en vivo";
 const EN = "My live stream";
@@ -35,4 +35,46 @@ test("a waiting row whose title is no longer the default is only settled, never 
 
 test("a screen-less path never settles or retitles", () => {
   assert.equal(pendingTitleFix({ title: ES, broadcast_meta: pendingMeta }, "unknown"), null);
+});
+
+type Row = { title: string; broadcast_meta: unknown };
+function io(reads: (Row | null)[], insertError: { message: string } | null) {
+  const settled: Row[] = [];
+  return {
+    settled,
+    io: {
+      read: async () => reads.shift() ?? null,
+      insert: async () => insertError,
+      // what getOrCreateSession does for an English screen
+      settle: async (r: Row) => {
+        settled.push(r);
+        const fix = pendingTitleFix(r, "en");
+        return fix?.kind === "retitle" ? { title: fix.title, broadcast_meta: { title: fix.title } } : r;
+      },
+    },
+  };
+}
+
+test("race: ChalyClip's create wins, the English call loses the insert → still settled to English", async () => {
+  const winner = { title: ES, broadcast_meta: pendingMeta };
+  const { io: x, settled } = io([null, winner], { message: "duplicate key" });
+  const out = await openSession(x);
+  assert.equal(out.kind, "lost");
+  assert.deepEqual(settled, [winner], "the winner's row goes through settle");
+  assert.equal(out.kind === "lost" && out.row?.title, EN);
+});
+
+test("found row is settled; a won insert needs no settle; lost race with no row left reports it", async () => {
+  const a = io([{ title: ES, broadcast_meta: pendingMeta }], null);
+  const found = await openSession(a.io);
+  assert.equal(found.kind === "found" && found.row.title, EN);
+
+  const b = io([null], null);
+  assert.deepEqual(await openSession(b.io), { kind: "created" });
+  assert.equal(b.settled.length, 0);
+
+  const c = io([null, null], { message: "rls" });
+  const lost = await openSession(c.io);
+  assert.equal(lost.kind === "lost" && lost.row, null);
+  assert.equal(c.settled.length, 0);
 });
