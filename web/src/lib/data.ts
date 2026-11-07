@@ -11,6 +11,7 @@ import {
 import { isFullAccessTier } from "./tier";
 import { buildPushUrl } from "./push-url";
 import { settleSessionInsert } from "./session-create";
+import { writeTenantTier } from "./tenant-tier";
 import { defaultStreamTitle, type Lang } from "./locale";
 
 /**
@@ -878,24 +879,13 @@ export async function markStreamEnded(
 
 // ── Tier (persisted from SSO / provisioning, migration 0026) ────────────────
 
-/** Persist the tier Chalyb last told us about (SSO launch or tenant
- *  provisioning), so relay callbacks — which carry no user cookie — can
- *  re-check it. Best-effort: never blocks login. */
+// Relay callbacks (no cookie) re-check this tier. Existing rows only: the first screen
+// that opens En vivo creates the row in its language (hub /state, /auth/sso, dashboard).
 export async function saveTenantTier(
   tenantId: string,
   tier: string | null,
 ): Promise<void> {
-  try {
-    await getOrCreateSession(tenantId); // ensure row exists
-    const db = getSupabaseAdmin();
-    const { error } = await db
-      .from("chalybobs_sessions")
-      .update({ tier, tier_updated_at: new Date().toISOString() })
-      .eq("tenant_id", tenantId);
-    if (error) console.error(`[tier] save failed: ${error.message}`);
-  } catch (e) {
-    console.error(`[tier] save failed: ${e instanceof Error ? e.message : String(e)}`);
-  }
+  await writeTenantTier(getSupabaseAdmin, tenantId, tier);
 }
 
 /**
